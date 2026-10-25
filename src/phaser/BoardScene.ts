@@ -36,6 +36,7 @@ export class BoardScene extends Phaser.Scene {
   private gameOver!: GameOverOverlay;
   private sfx: Sfx = new WebAudioSfx();
   private muteButton!: Phaser.GameObjects.Text;
+  private restartButton!: Phaser.GameObjects.Text;
 
   /** Per-cell extra rows to offset UPWARD while the gravity drop plays.
    * Keyed "col,row" of the block's FINAL cell; 0 when settled. */
@@ -90,6 +91,21 @@ export class BoardScene extends Phaser.Scene {
       this.toggleMute();
     });
 
+    this.restartButton = this.add
+      .text(this.scale.width - 52, SCORE_H / 2, "🔄", { fontSize: "26px" })
+      .setOrigin(1, 0.5)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(500);
+    this.restartButton.on("pointerdown", (
+      _p: Phaser.Input.Pointer,
+      _x: number,
+      _y: number,
+      e: Phaser.Types.Input.EventData,
+    ) => {
+      e.stopPropagation?.();
+      this.restart();
+    });
+
     this.input.on("pointerdown", this.onPointerDown, this);
     this.input.on("pointermove", this.onPointerMove, this);
     this.input.on("pointerup", this.onPointerUp, this);
@@ -107,6 +123,7 @@ export class BoardScene extends Phaser.Scene {
     this.computeLayout();
     this.scoreText?.setX(this.scale.width / 2);
     this.muteButton?.setPosition(this.scale.width - 12, SCORE_H / 2);
+    this.restartButton?.setPosition(this.scale.width - 52, SCORE_H / 2);
     this.powerBar?.layout();
     this.gameOver?.layout();
     this.redraw();

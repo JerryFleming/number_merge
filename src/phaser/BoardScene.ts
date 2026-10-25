@@ -172,16 +172,28 @@ export class BoardScene extends Phaser.Scene {
     if (!this.dragging) return;
     this.dragging = false;
     const chainLength = this.model.path.length;
+    // Capture the chain (positions + tiers) BEFORE commit mutates the board,
+    // so we can fly the consumed blocks into the merge cell.
+    const chain = this.model.path.map((p) => {
+      const c = cellAt(this.model.grid, p);
+      return { pos: p, tier: c ? c.tier : 1 };
+    });
     const result = this.model.commit();
     if (result) {
       this.sfx.play("merge", chainLength);
-      this.animateSettle();
-      this.animateMerge(result.restingPos);
       this.save();
-    } else {
-      if (chainLength > 0) this.sfx.play("invalid");
-      this.redraw();
+      // Phase 1: consumed blocks fly into the landed cell. Phase 2 (settle +
+      // result pop) runs after they arrive.
+      this.animateMergeCollect(chain, result.landed, () => {
+        this.animateSettle();
+        this.animateMerge(result.restingPos);
+        this.checkGameOver();
+      });
+      this.scoreText.setText(this.model.score.toString());
+      return;
     }
+    if (chainLength > 0) this.sfx.play("invalid");
+    this.redraw();
     this.scoreText.setText(this.model.score.toString());
     this.checkGameOver();
   }
@@ -387,6 +399,64 @@ export class BoardScene extends Phaser.Scene {
       else this.lineGfx.lineTo(c.x, c.y);
     });
     this.lineGfx.strokePath();
+  }
+
+  /** Phase 1 of a merge: draw the consumed blocks and fly them into the
+   * landed cell, then call `onDone`. The under-board is left as last drawn
+   * (the pre-merge state) so the fly-in reads clearly. */
+  private animateMergeCollect(
+    chain: { pos: Pos; tier: number }[],
+    landed: Pos,
+    onDone: () => void,
+  ): void {
+    this.lineGfx.clear(); // drop the drag connector before the fly-in
+    const dest = cellCenter(landed, this.origin, this.size);
+    const inset = this.size * 0.06;
+    const s = this.size - inset * 2;
+    const layer = this.add.container(0, 0).setDepth(900);
+
+    const movers: Phaser.GameObjects.Container[] = [];
+    for (const { pos, tier } of chain) {
+      const from = cellCenter(pos, this.origin, this.size);
+      const g = this.add.graphics();
+      g.fillStyle(tierColor(tier), 1);
+      g.fillRoundedRect(-s / 2, -s / 2, s, s, s * 0.18);
+      const t = this.add
+        .text(0, 0, tierLabel(tier), {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: `${Math.floor(this.size * 0.34)}px`,
+          color: COLORS.text,
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5);
+      const c = this.add.container(from.x, from.y, [g, t]);
+      layer.add(c);
+      movers.push(c);
+    }
+
+    let remaining = movers.length;
+    if (remaining === 0) {
+      layer.destroy();
+      onDone();
+      return;
+    }
+    movers.forEach((m, i) => {
+      this.tweens.add({
+        targets: m,
+        x: dest.x,
+        y: dest.y,
+        scale: 0.3,
+        ease: "Cubic.In",
+        duration: 150,
+        delay: i * 25, // slight stagger so the chain "zips" together
+        onComplete: () => {
+          if (--remaining === 0) {
+            layer.destroy();
+            onDone();
+          }
+        },
+      });
+    });
   }
 
   private animateMerge(landed: Pos): void {

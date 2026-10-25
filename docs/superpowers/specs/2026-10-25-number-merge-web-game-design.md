@@ -194,10 +194,20 @@ These are requirements, not polish-if-time:
   boards are rare at 5×7 with multiple blocks per tier, and letting them end
   the run is what "endless until no moves" means.
 
-## Session persistence (my call)
+## Session persistence (added after v1 build, by user request)
 
-- **No persistence in v1.** Reloading the page starts a fresh game. This fits
-  the feel-first, no-accounts scope; add resume-on-reload later if wanted.
+- **Auto-save + auto-resume, this browser only (`localStorage`).** The board,
+  score, and highest-tier-reached are saved after every move and power-up and
+  reloaded automatically on page open — closing and reopening continues where
+  you left off. Transient state (drag path, power-up targeting) is not saved.
+- **"New game"** overwrites the save with the fresh board. **Game over**
+  clears the save, so a reload after a dead board starts fresh rather than
+  dropping back onto the game-over screen.
+- Save is versioned; a save from an incompatible version or any corrupt data
+  is discarded (falls back to a fresh game). All storage access is wrapped so
+  a browser with storage blocked/full simply plays without persistence.
+- Still **no cross-device sync and no accounts** (that remains out of scope).
+- (Original v1 call was "no persistence"; superseded here.)
 
 ## Left to the builder (sensible-default calls)
 

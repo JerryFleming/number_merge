@@ -73,6 +73,16 @@ export class Game {
     this.recomputeOver();
   }
 
+  /** Restore a saved board + score + progress. Transient state is reset. */
+  restore(state: { grid: Grid; score: bigint; reachedTier: Tier }): void {
+    this._grid = state.grid.map((r) => r.slice());
+    this._score = state.score;
+    this._reachedTier = state.reachedTier;
+    this._path = [];
+    this._targeting = null;
+    this.recomputeOver();
+  }
+
   // --- drag ---------------------------------------------------------------
 
   /** Update the drag path for the block under the pointer. Inert while targeting. */

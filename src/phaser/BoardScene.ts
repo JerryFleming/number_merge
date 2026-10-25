@@ -15,6 +15,7 @@ import { COLORS, tierColor, tierLabel } from "./theme";
 import { PowerBar } from "./PowerBar";
 import { GameOverOverlay } from "./GameOver";
 import { WebAudioSfx, type Sfx } from "./sound";
+import { serialize, deserialize } from "../core/persistence";
 
 /**
  * Renders the board from the Game's state, drives the retractable drag, and
@@ -43,8 +44,11 @@ export class BoardScene extends Phaser.Scene {
     super("board");
   }
 
+  private static readonly SAVE_KEY = "nm_save";
+
   create(): void {
     this.model = new Game();
+    this.resumeIfSaved(); // auto-resume a saved board, if any
     this.computeLayout();
 
     this.cameras.main.setBackgroundColor(COLORS.bg);
@@ -147,6 +151,7 @@ export class BoardScene extends Phaser.Scene {
     if (result) {
       this.sfx.play("merge", chainLength);
       this.animateMerge(result.restingPos);
+      this.save();
     } else {
       if (chainLength > 0) this.sfx.play("invalid");
       this.redraw();
@@ -193,6 +198,7 @@ export class BoardScene extends Phaser.Scene {
     this.sfx.play("powerup");
     this.powerBar.clearActive();
     this.scoreText.setText(this.model.score.toString());
+    this.save();
     this.redraw();
     this.checkGameOver();
   }
@@ -202,6 +208,7 @@ export class BoardScene extends Phaser.Scene {
     this.gameOver.hide();
     this.swapFirst = null;
     this.scoreText.setText("0");
+    this.save(); // persist the fresh board so a reload resumes the new game
     this.redraw();
   }
 
@@ -209,6 +216,7 @@ export class BoardScene extends Phaser.Scene {
     if (this.model.isOver) {
       this.sfx.play("gameover");
       this.gameOver.show(this.model.score);
+      this.clearSave(); // a finished game shouldn't resume on reload
     }
   }
 
@@ -230,6 +238,44 @@ export class BoardScene extends Phaser.Scene {
       return localStorage.getItem("nm_muted") === "1";
     } catch {
       return false;
+    }
+  }
+
+  // --- persistence --------------------------------------------------------
+
+  /** Load a saved board and restore it, unless the save is absent/invalid. */
+  private resumeIfSaved(): void {
+    let json: string | null = null;
+    try {
+      json = localStorage.getItem(BoardScene.SAVE_KEY);
+    } catch {
+      return;
+    }
+    const state = deserialize(json);
+    if (state) this.model.restore(state);
+  }
+
+  /** Persist the current board, score, and progress. Called after any change. */
+  private save(): void {
+    try {
+      localStorage.setItem(
+        BoardScene.SAVE_KEY,
+        serialize({
+          grid: this.model.grid,
+          score: this.model.score,
+          reachedTier: this.model.reachedTier,
+        }),
+      );
+    } catch {
+      /* storage unavailable or full — degrade silently to no-save */
+    }
+  }
+
+  private clearSave(): void {
+    try {
+      localStorage.removeItem(BoardScene.SAVE_KEY);
+    } catch {
+      /* ignore */
     }
   }
 

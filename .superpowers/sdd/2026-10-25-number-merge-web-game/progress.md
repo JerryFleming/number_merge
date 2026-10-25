@@ -22,3 +22,5 @@ Task 4: complete (commits 1d14543..f1fa277, tests: vitest run tests/core/merge.t
 Task 5: complete (commits f1fa277..91ae17e, tests: vitest run spawn+seed -> 4/4 pass) [covers Review Focus: degenerate seed re-roll]
 Task 6: complete (commits 91ae17e..cea5bfd, tests: vitest run gravity+moves -> 6/6 pass) [covers Review Focus: single-column collapse]
 Task 7: complete (commits cea5bfd..83bcf1b, tests: vitest run tests/core/powerups.test.ts -> 7/7 pass) [covers Review Focus: Magnet singleton]
+Task 8: complete (commits 83bcf1b..cd91df4, tests: vitest run -> 50/50 pass, tsc --noEmit clean) [covers Review Focus: backtrack-to-head no-op]
+Ruling: Task 8 test used *ForTest mutators in first draft; replaced with legitimate public API (constructor initialGrid, loadGrid) to keep test-only scaffolding out of the production Game class, per writing-good-tests. Cost if wrong: loadGrid is a public method that also serves real resume/setup use, not dead code.

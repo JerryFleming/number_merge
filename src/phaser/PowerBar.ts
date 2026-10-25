@@ -69,11 +69,17 @@ export class PowerBar {
     const h = this.scene.scale.height;
     const n = this.buttons.length;
     const pad = 12;
-    const bw = (w - pad * (n + 1)) / n;
+    // Cap each button's width so the group doesn't stretch edge-to-edge on
+    // wide screens; center the whole row horizontally.
+    const maxBtnW = 140;
+    const available = (w - pad * (n + 1)) / n;
+    const bw = Math.min(maxBtnW, available);
     const bh = POWER_BAR_H - pad * 2;
     const y = h - POWER_BAR_H + pad;
+    const groupW = bw * n + pad * (n - 1);
+    const startX = (w - groupW) / 2;
     this.buttons.forEach((btn, i) => {
-      const x = pad + i * (bw + pad);
+      const x = startX + i * (bw + pad);
       btn.bg.setData("rect", { x, y, bw, bh });
       btn.bg.input!.hitArea.setTo(0, 0, bw, bh);
       btn.bg.setPosition(x, y);

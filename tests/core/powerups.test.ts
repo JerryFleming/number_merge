@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { hammer, magnet, magnetUsable, swap } from "../../src/core/powerups";
 import { cellAt, createGrid } from "../../src/core/board";
-import type { Cell, Grid, Pos } from "../../src/core/types";
+import type { Grid, Pos } from "../../src/core/types";
 
 const P = (col: number, row: number): Pos => ({ col, row });
 

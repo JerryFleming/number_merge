@@ -21,3 +21,4 @@ Task 3: complete (commits 05cdd7a..1d14543, tests: vitest run tests/core/connect
 Task 4: complete (commits 1d14543..f1fa277, tests: vitest run tests/core/merge.test.ts -> 5/5 pass) [covers Review Focus: non-power-of-two total]
 Task 5: complete (commits f1fa277..91ae17e, tests: vitest run spawn+seed -> 4/4 pass) [covers Review Focus: degenerate seed re-roll]
 Task 6: complete (commits 91ae17e..cea5bfd, tests: vitest run gravity+moves -> 6/6 pass) [covers Review Focus: single-column collapse]
+Task 7: complete (commits cea5bfd..83bcf1b, tests: vitest run tests/core/powerups.test.ts -> 7/7 pass) [covers Review Focus: Magnet singleton]

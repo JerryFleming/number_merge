@@ -214,31 +214,79 @@ export class BoardScene extends Phaser.Scene {
   private handleTargetTap(pos: Pos): void {
     const power = this.model.targeting;
     if (!power) return;
+
     if (power === "hammer") {
+      const hit = cellAt(this.model.grid, pos);
       this.model.useHammer(pos);
-    } else if (power === "magnet") {
+      this.sfx.play("powerup");
+      this.powerBar.clearActive();
+      // Smash burst at the struck cell, then the board falls into place.
+      this.animateHammer(pos, hit ? tierColor(hit.tier) : COLORS.line, () => {
+        this.animateSettle();
+        this.finishPowerUp();
+      });
+      return;
+    }
+
+    if (power === "magnet") {
+      // Capture the gathered blocks BEFORE mutation so they can fly in.
+      const target = cellAt(this.model.grid, pos);
+      const gathered = target ? this.cellsOfTier(target.tier) : [];
       const ok = this.model.useMagnet(pos);
       if (!ok) {
         this.sfx.play("invalid");
         this.flashInvalid(pos);
         return; // not consumed; stay in targeting
       }
-    } else if (power === "swap") {
-      if (!this.swapFirst) {
-        this.swapFirst = pos;
-        this.sfx.play("select");
-        this.redraw();
-        return;
-      }
-      this.model.useSwap(this.swapFirst, pos);
-      this.swapFirst = null;
+      this.sfx.play("powerup");
+      this.powerBar.clearActive();
+      // Pull every gathered block into the tapped cell, then settle + pop.
+      this.animateMergeCollect(gathered, pos, () => {
+        this.animateSettle();
+        this.animateMerge(pos);
+        this.finishPowerUp();
+      });
+      return;
     }
+
+    // swap
+    if (!this.swapFirst) {
+      this.swapFirst = pos;
+      this.sfx.play("select");
+      this.redraw();
+      return;
+    }
+    const a = this.swapFirst;
+    const b = pos;
+    const ca = cellAt(this.model.grid, a);
+    const cb = cellAt(this.model.grid, b);
+    this.swapFirst = null;
+    this.model.useSwap(a, b);
     this.sfx.play("powerup");
     this.powerBar.clearActive();
+    // Slide the two blocks past each other to their new cells.
+    this.animateSwap(a, b, ca ? ca.tier : null, cb ? cb.tier : null, () => {
+      this.finishPowerUp();
+    });
+  }
+
+  /** Shared post-power-up bookkeeping. */
+  private finishPowerUp(): void {
     this.scoreText.setText(this.model.score.toString());
     this.save();
-    this.animateSettle();
     this.checkGameOver();
+  }
+
+  /** Positions of every block currently sharing `tier`. */
+  private cellsOfTier(tier: number): { pos: Pos; tier: number }[] {
+    const out: { pos: Pos; tier: number }[] = [];
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const c = this.model.grid[row][col];
+        if (c && c.tier === tier) out.push({ pos: { col, row }, tier });
+      }
+    }
+    return out;
   }
 
   private restart(): void {
@@ -487,6 +535,94 @@ export class BoardScene extends Phaser.Scene {
         onComplete: () => dot.destroy(),
       });
     }
+  }
+
+  /** Hammer: a white strike flash that punches down onto the cell, then a
+   * debris burst in the struck block's color. The board redraw/settle runs
+   * after via onDone. */
+  private animateHammer(target: Pos, color: number, onDone: () => void): void {
+    const c = cellCenter(target, this.origin, this.size);
+    const s = this.size - this.size * 0.06 * 2;
+    const flash = this.add.graphics().setDepth(940);
+    flash.fillStyle(0xffffff, 0.9);
+    flash.fillRoundedRect(-s / 2, -s / 2, s, s, s * 0.18);
+    flash.setPosition(c.x, c.y - this.size * 0.5).setScale(0.6);
+    this.tweens.add({
+      targets: flash,
+      y: c.y,
+      scale: 1.1,
+      duration: 120,
+      ease: "Quad.In",
+      onComplete: () => {
+        flash.destroy();
+        this.spawnMergeBurst(c.x, c.y, color);
+        onDone();
+      },
+    });
+  }
+
+  /** Swap: slide two temporary blocks past each other to the other's cell,
+   * then redraw to the swapped board. */
+  private animateSwap(
+    a: Pos,
+    b: Pos,
+    tierA: number | null,
+    tierB: number | null,
+    onDone: () => void,
+  ): void {
+    this.redraw(); // show the already-swapped board, then cover both cells
+    const s = this.size - this.size * 0.06 * 2;
+    const ca = cellCenter(a, this.origin, this.size);
+    const cb = cellCenter(b, this.origin, this.size);
+    const layer = this.add.container(0, 0).setDepth(900);
+
+    const makeMover = (from: Point, tier: number | null) => {
+      if (tier === null) return null; // empty cell: nothing to slide
+      const g = this.add.graphics();
+      g.fillStyle(tierColor(tier), 1);
+      g.fillRoundedRect(-s / 2, -s / 2, s, s, s * 0.18);
+      const t = this.add
+        .text(0, 0, tierLabel(tier), {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: `${Math.floor(this.size * 0.34)}px`,
+          color: COLORS.text,
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5);
+      const cont = this.add.container(from.x, from.y, [g, t]);
+      layer.add(cont);
+      return cont;
+    };
+
+    // Cover the destination cells so the final state isn't visible mid-slide.
+    const cover = this.add.graphics().setDepth(880);
+    cover.fillStyle(COLORS.cellEmpty, 1);
+    for (const p of [a, b]) {
+      const cc = cellCenter(p, this.origin, this.size);
+      cover.fillRoundedRect(cc.x - s / 2, cc.y - s / 2, s, s, s * 0.18);
+    }
+
+    const mA = makeMover(ca, tierA); // block that started at a -> moves to b
+    const mB = makeMover(cb, tierB); // block that started at b -> moves to a
+    const targets = [mA, mB].filter((m): m is Phaser.GameObjects.Container => !!m);
+    if (targets.length === 0) {
+      cover.destroy();
+      layer.destroy();
+      this.redraw();
+      onDone();
+      return;
+    }
+    let remaining = targets.length;
+    const done = () => {
+      if (--remaining === 0) {
+        cover.destroy();
+        layer.destroy();
+        this.redraw();
+        onDone();
+      }
+    };
+    if (mA) this.tweens.add({ targets: mA, x: cb.x, y: cb.y, duration: 200, ease: "Quad.InOut", onComplete: done });
+    if (mB) this.tweens.add({ targets: mB, x: ca.x, y: ca.y, duration: 200, ease: "Quad.InOut", onComplete: done });
   }
 
   private animateMerge(landed: Pos): void {

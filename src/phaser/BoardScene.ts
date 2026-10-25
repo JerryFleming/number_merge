@@ -377,19 +377,25 @@ export class BoardScene extends Phaser.Scene {
     // Draw each segment between the EDGES of adjacent boxes rather than their
     // centers: pull both endpoints in from the centers by the box half-size
     // along the direction joining them.
-    const half = (this.size - this.size * 0.06 * 2) / 2; // matches redraw's box
+    // Box geometry matches redraw(): side s, corner radius r (rounded).
+    const s = this.size - this.size * 0.06 * 2;
+    const half = s / 2;
+    const r = s * 0.18;
+    // Where a diagonal meets the ROUNDED corner: the arc's 45-degree point.
+    const diag = half - r + r / Math.SQRT2;
     for (let i = 1; i < path.length; i++) {
       const a = cellCenter(path[i - 1], this.origin, this.size);
       const b = cellCenter(path[i], this.origin, this.size);
-      // Offset each axis independently by the box half-size in the direction
-      // of travel. For an orthogonal step this lands on a side's midpoint; for
-      // a diagonal step it lands exactly on the shared corner, so the line
-      // never overlaps a box.
-      const sx = Math.sign(b.x - a.x) * half;
-      const sy = Math.sign(b.y - a.y) * half;
+      const dirX = Math.sign(b.x - a.x);
+      const dirY = Math.sign(b.y - a.y);
+      // Diagonal step: stop on the rounded corner. Orthogonal step: stop on the
+      // side's midpoint (offset only on the moving axis).
+      const diagonal = dirX !== 0 && dirY !== 0;
+      const ox = dirX * (diagonal ? diag : half);
+      const oy = dirY * (diagonal ? diag : half);
       this.lineGfx.beginPath();
-      this.lineGfx.moveTo(a.x + sx, a.y + sy);
-      this.lineGfx.lineTo(b.x - sx, b.y - sy);
+      this.lineGfx.moveTo(a.x + ox, a.y + oy);
+      this.lineGfx.lineTo(b.x - ox, b.y - oy);
       this.lineGfx.strokePath();
     }
   }

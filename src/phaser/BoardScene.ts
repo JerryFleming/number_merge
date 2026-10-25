@@ -563,6 +563,11 @@ export class BoardScene extends Phaser.Scene {
     tier: number | null,
     onDone: () => void,
   ): void {
+    // Redraw the real board to its current (post-hammer, settled) state up
+    // front with the gravity drop offsets already applied, so the under-board
+    // is correct for the whole strike and there is no stale->fresh jump (which
+    // showed up as a full-board flicker when the temp layer was torn down).
+    this.beginSettleFrozen();
     const c = cellCenter(target, this.origin, this.size);
     const s = this.size - this.size * 0.06 * 2;
     const layer = this.add.container(0, 0).setDepth(940);
@@ -714,6 +719,23 @@ export class BoardScene extends Phaser.Scene {
         duration: 220,
       });
     }
+  }
+
+  /** Draw the board with the pending fall offsets fully applied (blocks shown
+   * at their pre-fall positions), without starting the drop tween. Lets an
+   * effect animation play over a correct, static board before the fall, so the
+   * teardown doesn't flash a stale board. */
+  private beginSettleFrozen(): void {
+    this.fallOffset.clear();
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const c = this.model.grid[row][col];
+        if (!c) continue;
+        const fell = this.model.lastSettle.get(c) ?? 0;
+        if (fell > 0) this.fallOffset.set(`${col},${row}`, fell);
+      }
+    }
+    this.redraw();
   }
 
   /** Animate the most recent gravity settle: every block that fell (or spawned)

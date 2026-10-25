@@ -6,6 +6,7 @@
 
 export const SFX_NAMES = [
   "select",
+  "deselect",
   "merge",
   "invalid",
   "powerup",
@@ -85,6 +86,11 @@ export class WebAudioSfx implements Sfx {
     switch (name) {
       case "select":
         return [{ freq: 660, type: "triangle", duration: 0.06, gain: 0.12 }];
+      case "deselect":
+        // A soft, quick downward blip — the "undo" of a select.
+        return [
+          { freq: 520, type: "triangle", duration: 0.05, gain: 0.1, sweepTo: 400 },
+        ];
       case "merge": {
         const f = chainPitch(chainLength);
         return [

@@ -21,6 +21,7 @@ describe("SFX_NAMES", () => {
   it("covers the game's sound events", () => {
     const expected: SfxName[] = [
       "select",
+      "deselect",
       "merge",
       "invalid",
       "powerup",

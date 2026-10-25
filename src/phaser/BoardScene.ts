@@ -134,6 +134,7 @@ export class BoardScene extends Phaser.Scene {
     this.model.pointer(pos);
     if (this.model.path.length !== before) {
       if (this.model.path.length > before) this.sfx.play("select");
+      else this.sfx.play("deselect"); // path reverted (backtrack)
       this.redraw();
     }
   }

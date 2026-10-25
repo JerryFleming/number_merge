@@ -220,8 +220,8 @@ export class BoardScene extends Phaser.Scene {
       this.model.useHammer(pos);
       this.sfx.play("powerup");
       this.powerBar.clearActive();
-      // Smash burst at the struck cell, then the board falls into place.
-      this.animateHammer(pos, hit ? tierColor(hit.tier) : COLORS.line, () => {
+      // A hammer swings down and knocks the struck block, then the board falls.
+      this.animateHammer(pos, hit ? hit.tier : null, () => {
         this.animateSettle();
         this.finishPowerUp();
       });
@@ -537,26 +537,95 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
-  /** Hammer: a white strike flash that punches down onto the cell, then a
-   * debris burst in the struck block's color. The board redraw/settle runs
-   * after via onDone. */
-  private animateHammer(target: Pos, color: number, onDone: () => void): void {
+  /** Draw a simple cartoon hammer (head + handle) centered at (0,0), pointing
+   * down-left so it reads as cocked back before a strike. */
+  private makeHammer(size: number): Phaser.GameObjects.Container {
+    const g = this.add.graphics();
+    const headW = size * 0.7;
+    const headH = size * 0.42;
+    const handleW = size * 0.16;
+    const handleL = size * 0.75;
+    // Handle (brown), extending down from the head.
+    g.fillStyle(0x8a5a2b, 1);
+    g.fillRoundedRect(-handleW / 2, 0, handleW, handleL, handleW * 0.4);
+    // Head (grey metal) sitting on top of the handle.
+    g.fillStyle(0x9aa3b2, 1);
+    g.fillRoundedRect(-headW / 2, -headH, headW, headH, headH * 0.22);
+    g.fillStyle(0xc7cdd8, 1);
+    g.fillRoundedRect(-headW / 2, -headH, headW * 0.28, headH, headH * 0.22);
+    return this.add.container(0, 0, [g]);
+  }
+
+  /** Hammer: a hammer swings down and knocks the struck block (which recoils
+   * and shatters into debris), then the board settles via onDone. */
+  private animateHammer(
+    target: Pos,
+    tier: number | null,
+    onDone: () => void,
+  ): void {
     const c = cellCenter(target, this.origin, this.size);
     const s = this.size - this.size * 0.06 * 2;
-    const flash = this.add.graphics().setDepth(940);
-    flash.fillStyle(0xffffff, 0.9);
-    flash.fillRoundedRect(-s / 2, -s / 2, s, s, s * 0.18);
-    flash.setPosition(c.x, c.y - this.size * 0.5).setScale(0.6);
+    const layer = this.add.container(0, 0).setDepth(940);
+
+    // Temporary copy of the struck block (the real one is already removed).
+    let block: Phaser.GameObjects.Container | null = null;
+    if (tier !== null) {
+      const bg = this.add.graphics();
+      bg.fillStyle(tierColor(tier), 1);
+      bg.fillRoundedRect(-s / 2, -s / 2, s, s, s * 0.18);
+      const t = this.add
+        .text(0, 0, tierLabel(tier), {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: `${Math.floor(this.size * 0.34)}px`,
+          color: COLORS.text,
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5);
+      block = this.add.container(c.x, c.y, [bg, t]);
+      layer.add(block);
+    }
+
+    // Hammer cocked back above-right of the cell, rotated up.
+    const hammer = this.makeHammer(this.size);
+    hammer.setPosition(c.x + this.size * 0.55, c.y - this.size * 0.75);
+    hammer.setRotation(Phaser.Math.DegToRad(-70));
+    layer.add(hammer);
+
+    const impactColor = tier !== null ? tierColor(tier) : COLORS.line;
     this.tweens.add({
-      targets: flash,
-      y: c.y,
-      scale: 1.1,
-      duration: 120,
+      targets: hammer,
+      rotation: Phaser.Math.DegToRad(-8),
+      x: c.x + this.size * 0.18,
+      y: c.y - this.size * 0.34,
+      duration: 160,
       ease: "Quad.In",
       onComplete: () => {
-        flash.destroy();
-        this.spawnMergeBurst(c.x, c.y, color);
-        onDone();
+        // Impact: block squashes and jitters, debris flies, hammer bounces up.
+        if (block) {
+          this.tweens.add({
+            targets: block,
+            scaleX: 1.25,
+            scaleY: 0.6,
+            duration: 70,
+            yoyo: true,
+            ease: "Quad.Out",
+            onComplete: () => block?.destroy(),
+          });
+        }
+        this.spawnMergeBurst(c.x, c.y, impactColor);
+        this.cameras.main.shake(120, 0.006);
+        this.tweens.add({
+          targets: hammer,
+          rotation: Phaser.Math.DegToRad(-45),
+          y: c.y - this.size * 0.7,
+          alpha: 0,
+          duration: 160,
+          ease: "Quad.Out",
+          onComplete: () => {
+            layer.destroy();
+            onDone();
+          },
+        });
       },
     });
   }

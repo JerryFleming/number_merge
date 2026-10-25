@@ -59,6 +59,31 @@ describe("Game drag + commit", () => {
     expect(fullBoard(game)).toBe(true); // consumed cells refilled
   });
 
+  it("reports the merged block's resting position AFTER gravity", () => {
+    // Column 0: tier-4 at rows 0,1,2; rows 3-6 empty. Rest of the board tier-9.
+    const grid: Grid = [];
+    for (let row = 0; row < ROWS; row++) {
+      const r: (Cell | null)[] = [];
+      for (let col = 0; col < COLS; col++) {
+        if (col === 0) r.push(row <= 2 ? { tier: 4 } : null);
+        else r.push({ tier: 9 });
+      }
+      grid.push(r);
+    }
+    const game = new Game({ rng: fixedRng(0), initialGrid: grid });
+    game.pointer(P(0, 0));
+    game.pointer(P(0, 1));
+    game.pointer(P(0, 2));
+    const result = game.commit()!;
+    // total = 3 * 2^4 = 48 -> tier floor(log2 48) = 5, landed (pre-gravity) at row 2.
+    expect(result.tier).toBe(5);
+    expect(result.landed).toEqual(P(0, 2));
+    // After collapse the lone tier-5 block falls to the bottom row.
+    expect(result.restingPos).toEqual(P(0, ROWS - 1));
+    // And that cell really holds the merged block (refill range 1..4 can't make tier 5).
+    expect(cellAt(game.grid, result.restingPos)).toEqual({ tier: 5 });
+  });
+
   it("commits a 1-length path as a no-op (no score, path cleared)", () => {
     const game = new Game({ rng: fixedRng(0), initialGrid: gridOf(5, {}) });
     game.pointer(P(2, 2));

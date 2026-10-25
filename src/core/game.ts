@@ -5,7 +5,7 @@ import { hasAnyMove } from "./moves";
 import { hammer, magnet, magnetUsable, swap } from "./powerups";
 import { seedBoard } from "./seed";
 import { spawnRange } from "./spawn";
-import type { Grid, Pos, Tier } from "./types";
+import { COLS, ROWS, type Cell, type Grid, type Pos, type Tier } from "./types";
 
 export type PowerUp = "hammer" | "magnet" | "swap";
 
@@ -88,16 +88,20 @@ export class Game {
       this._path = [];
       return null;
     }
-    // Clear consumed cells, place the merged block at the landed cell.
+    // Clear consumed cells, place the merged block at the landed cell. Keep a
+    // reference to the exact merged-block object so we can find where gravity
+    // leaves it (collapse moves references; refill only fills nulls with new
+    // objects, so identity uniquely locates the merged block afterwards).
+    const mergedBlock: Cell = { tier: result.tier };
     const next = this._grid.map((r) => r.slice());
     for (const p of result.consumed) next[p.row][p.col] = null;
-    next[result.landed.row][result.landed.col] = { tier: result.tier };
+    next[result.landed.row][result.landed.col] = mergedBlock;
     this._grid = next;
     this._score += result.score;
     if (result.tier > this._reachedTier) this._reachedTier = result.tier;
     this.settleBoard();
     this._path = [];
-    return result;
+    return { ...result, restingPos: this.findBlock(mergedBlock) ?? result.landed };
   }
 
   // --- power-ups ----------------------------------------------------------
@@ -137,6 +141,16 @@ export class Game {
   }
 
   // --- internals ----------------------------------------------------------
+
+  /** Locate a specific block object on the board by identity, or null. */
+  private findBlock(block: Cell): Pos | null {
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        if (this._grid[row][col] === block) return { col, row };
+      }
+    }
+    return null;
+  }
 
   private settleBoard(): void {
     this._grid = collapseColumns(this._grid);

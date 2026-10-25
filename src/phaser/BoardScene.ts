@@ -116,7 +116,7 @@ export class BoardScene extends Phaser.Scene {
     this.dragging = false;
     const result = this.model.commit();
     if (result) {
-      this.animateMerge(result.landed);
+      this.animateMerge(result.restingPos);
     } else {
       this.redraw();
     }

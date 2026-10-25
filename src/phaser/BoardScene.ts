@@ -416,10 +416,12 @@ export class BoardScene extends Phaser.Scene {
     const layer = this.add.container(0, 0).setDepth(900);
 
     const movers: Phaser.GameObjects.Container[] = [];
+    let lastColor = COLORS.line;
     for (const { pos, tier } of chain) {
       const from = cellCenter(pos, this.origin, this.size);
+      lastColor = tierColor(tier);
       const g = this.add.graphics();
-      g.fillStyle(tierColor(tier), 1);
+      g.fillStyle(lastColor, 1);
       g.fillRoundedRect(-s / 2, -s / 2, s, s, s * 0.18);
       const t = this.add
         .text(0, 0, tierLabel(tier), {
@@ -441,22 +443,50 @@ export class BoardScene extends Phaser.Scene {
       return;
     }
     movers.forEach((m, i) => {
+      // Spin direction alternates per block so the chain swirls into the point.
+      const spin = (i % 2 === 0 ? 1 : -1) * Phaser.Math.DegToRad(180);
       this.tweens.add({
         targets: m,
         x: dest.x,
         y: dest.y,
         scale: 0.3,
+        rotation: spin, // rotate as it travels (like the original's merge spin)
         ease: "Cubic.In",
         duration: 150,
         delay: i * 25, // slight stagger so the chain "zips" together
         onComplete: () => {
           if (--remaining === 0) {
             layer.destroy();
+            this.spawnMergeBurst(dest.x, dest.y, lastColor);
             onDone();
           }
         },
       });
     });
+  }
+
+  /** A short particle burst at the merge point: small dots fly out and fade. */
+  private spawnMergeBurst(x: number, y: number, color: number): void {
+    const n = 10;
+    const reach = this.size * 0.9;
+    for (let i = 0; i < n; i++) {
+      const angle = (Math.PI * 2 * i) / n + Math.random() * 0.3;
+      const dot = this.add.graphics().setDepth(950);
+      dot.fillStyle(color, 1);
+      dot.fillCircle(0, 0, Math.max(2, this.size * 0.05));
+      dot.setPosition(x, y);
+      const dist = reach * (0.6 + Math.random() * 0.4);
+      this.tweens.add({
+        targets: dot,
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist,
+        alpha: 0,
+        scale: 0.2,
+        ease: "Cubic.Out",
+        duration: 300 + Math.random() * 150,
+        onComplete: () => dot.destroy(),
+      });
+    }
   }
 
   private animateMerge(landed: Pos): void {

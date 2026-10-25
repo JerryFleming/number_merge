@@ -17,3 +17,4 @@ Ruling: none needed at pre-flight; all shared interfaces align.
 Ruling: Using plan steps directly + manual ledger instead of task-start/task-done scripts — those scripts assume plan file and workspace live in the same repo, but here the plan is in reverse-skill and the build is a standalone repo. The plan is fully in-context. Cost if wrong: ledger lines are hand-written rather than script-generated; same information, same format.
 Task 1: complete (initial..168c821, tests: vitest run tests/core/types.test.ts -> 2/2 pass)
 Task 2: complete (commits 168c821..05cdd7a, tests: vitest run tests/core/board.test.ts -> 7/7 pass)
+Task 3: complete (commits 05cdd7a..1d14543, tests: vitest run tests/core/connect.test.ts -> 12/12 pass) [covers Review Focus: backtrack-to-head]

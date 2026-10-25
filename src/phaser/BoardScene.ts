@@ -93,8 +93,10 @@ export class BoardScene extends Phaser.Scene {
     this.gameOver = new GameOverOverlay(this, () => this.restart());
 
     this.sfx.setMuted(this.loadMuted());
+    // Both header buttons sit on the score's line: restart at the left edge,
+    // mute at the right edge, balanced around the centered score.
     this.muteButton = this.add
-      .text(this.scale.width - 12, SCORE_H / 2, this.sfx.muted ? "🔇" : "🔊", {
+      .text(this.scale.width - 12, SCORE_H * 0.72, this.sfx.muted ? "🔇" : "🔊", {
         fontSize: "26px",
       })
       .setOrigin(1, 0.5)
@@ -111,8 +113,8 @@ export class BoardScene extends Phaser.Scene {
     });
 
     this.restartButton = this.add
-      .text(this.scale.width - 52, SCORE_H / 2, "🔄", { fontSize: "26px" })
-      .setOrigin(1, 0.5)
+      .text(12, SCORE_H * 0.72, "🔄", { fontSize: "26px" })
+      .setOrigin(0, 0.5)
       .setInteractive({ useHandCursor: true })
       .setDepth(500);
     this.restartButton.on("pointerdown", (
@@ -156,8 +158,8 @@ export class BoardScene extends Phaser.Scene {
     this.updateBoardMask();
     this.titleText?.setX(this.scale.width / 2);
     this.scoreText?.setX(this.scale.width / 2);
-    this.muteButton?.setPosition(this.scale.width - 12, SCORE_H / 2);
-    this.restartButton?.setPosition(this.scale.width - 52, SCORE_H / 2);
+    this.muteButton?.setPosition(this.scale.width - 12, SCORE_H * 0.72);
+    this.restartButton?.setPosition(12, SCORE_H * 0.72);
     this.powerBar?.layout();
     this.gameOver?.layout();
     this.redraw();

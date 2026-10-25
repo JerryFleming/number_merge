@@ -597,7 +597,8 @@ export class BoardScene extends Phaser.Scene {
       rotation: Phaser.Math.DegToRad(-8),
       x: c.x + this.size * 0.18,
       y: c.y - this.size * 0.34,
-      duration: 160,
+      duration: 360,
+      delay: 120, // brief hold of the cocked-back hammer before it swings
       ease: "Quad.In",
       onComplete: () => {
         // Impact: block squashes and jitters, debris flies, hammer bounces up.
@@ -606,20 +607,20 @@ export class BoardScene extends Phaser.Scene {
             targets: block,
             scaleX: 1.25,
             scaleY: 0.6,
-            duration: 70,
+            duration: 140,
             yoyo: true,
             ease: "Quad.Out",
             onComplete: () => block?.destroy(),
           });
         }
         this.spawnMergeBurst(c.x, c.y, impactColor);
-        this.cameras.main.shake(120, 0.006);
+        this.cameras.main.shake(160, 0.006);
         this.tweens.add({
           targets: hammer,
           rotation: Phaser.Math.DegToRad(-45),
           y: c.y - this.size * 0.7,
           alpha: 0,
-          duration: 160,
+          duration: 320,
           ease: "Quad.Out",
           onComplete: () => {
             layer.destroy();

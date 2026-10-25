@@ -30,6 +30,7 @@ export class BoardScene extends Phaser.Scene {
   private cellLayer!: Phaser.GameObjects.Container;
   private lineGfx!: Phaser.GameObjects.Graphics;
   private boardMaskG!: Phaser.GameObjects.Graphics;
+  private titleText!: Phaser.GameObjects.Text;
   private scoreText!: Phaser.GameObjects.Text;
   private dragging = false;
 
@@ -70,10 +71,19 @@ export class BoardScene extends Phaser.Scene {
     this.cellLayer.setMask(this.boardMaskG.createGeometryMask());
     this.updateBoardMask();
 
-    this.scoreText = this.add
-      .text(this.scale.width / 2, SCORE_H / 2, "0", {
+    this.titleText = this.add
+      .text(this.scale.width / 2, SCORE_H * 0.3, "NUMBER  MERGE", {
         fontFamily: "system-ui, sans-serif",
-        fontSize: "34px",
+        fontSize: "20px",
+        color: "#ffd166",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+
+    this.scoreText = this.add
+      .text(this.scale.width / 2, SCORE_H * 0.72, "0", {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "26px",
         color: COLORS.text,
         fontStyle: "bold",
       })
@@ -144,6 +154,7 @@ export class BoardScene extends Phaser.Scene {
   private onResize(): void {
     this.computeLayout();
     this.updateBoardMask();
+    this.titleText?.setX(this.scale.width / 2);
     this.scoreText?.setX(this.scale.width / 2);
     this.muteButton?.setPosition(this.scale.width - 12, SCORE_H / 2);
     this.restartButton?.setPosition(this.scale.width - 52, SCORE_H / 2);

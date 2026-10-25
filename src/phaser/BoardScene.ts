@@ -381,14 +381,15 @@ export class BoardScene extends Phaser.Scene {
     for (let i = 1; i < path.length; i++) {
       const a = cellCenter(path[i - 1], this.origin, this.size);
       const b = cellCenter(path[i], this.origin, this.size);
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const ux = dx / len;
-      const uy = dy / len;
+      // Offset each axis independently by the box half-size in the direction
+      // of travel. For an orthogonal step this lands on a side's midpoint; for
+      // a diagonal step it lands exactly on the shared corner, so the line
+      // never overlaps a box.
+      const sx = Math.sign(b.x - a.x) * half;
+      const sy = Math.sign(b.y - a.y) * half;
       this.lineGfx.beginPath();
-      this.lineGfx.moveTo(a.x + ux * half, a.y + uy * half);
-      this.lineGfx.lineTo(b.x - ux * half, b.y - uy * half);
+      this.lineGfx.moveTo(a.x + sx, a.y + sy);
+      this.lineGfx.lineTo(b.x - sx, b.y - sy);
       this.lineGfx.strokePath();
     }
   }

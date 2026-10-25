@@ -374,13 +374,23 @@ export class BoardScene extends Phaser.Scene {
     const path = this.model.path;
     if (path.length < 2) return;
     this.lineGfx.lineStyle(Math.max(6, this.size * 0.12), COLORS.line, 0.9);
-    this.lineGfx.beginPath();
-    path.forEach((p, i) => {
-      const c = cellCenter(p, this.origin, this.size);
-      if (i === 0) this.lineGfx.moveTo(c.x, c.y);
-      else this.lineGfx.lineTo(c.x, c.y);
-    });
-    this.lineGfx.strokePath();
+    // Draw each segment between the EDGES of adjacent boxes rather than their
+    // centers: pull both endpoints in from the centers by the box half-size
+    // along the direction joining them.
+    const half = (this.size - this.size * 0.06 * 2) / 2; // matches redraw's box
+    for (let i = 1; i < path.length; i++) {
+      const a = cellCenter(path[i - 1], this.origin, this.size);
+      const b = cellCenter(path[i], this.origin, this.size);
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len;
+      const uy = dy / len;
+      this.lineGfx.beginPath();
+      this.lineGfx.moveTo(a.x + ux * half, a.y + uy * half);
+      this.lineGfx.lineTo(b.x - ux * half, b.y - uy * half);
+      this.lineGfx.strokePath();
+    }
   }
 
   private animateMerge(landed: Pos): void {

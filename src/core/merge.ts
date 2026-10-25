@@ -19,9 +19,13 @@ export function mergeTotal(tiers: Tier[]): number {
   return tiers.reduce((sum, t) => sum + tierValue(t), 0);
 }
 
-/** The merged block's tier: the largest tier whose value is <= total. */
+/**
+ * The merged block's tier: the SMALLEST tier whose value (2^tier) is >= total,
+ * i.e. the total rounded UP to the next power of two. Matches the original
+ * game (three 64s -> 256, three 32s + a 64 -> 256); no value is "lost".
+ */
 export function tierFromTotal(total: number): Tier {
-  return Math.floor(Math.log2(total));
+  return Math.ceil(Math.log2(total));
 }
 
 /**

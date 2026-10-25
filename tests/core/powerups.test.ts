@@ -45,8 +45,8 @@ describe("magnet", () => {
     const g = gridWith({ "0,0": 3, "1,0": 3, "4,6": 3, "2,2": 7 });
     const out = magnet(g, P(4, 6))!;
     expect(out).not.toBeNull();
-    // three tier-3 -> total 24 -> floor(log2 24) = 4 at the tapped cell
-    expect(tierAt(out, P(4, 6))).toBe(4);
+    // three tier-3 -> total 24 -> next pow2 is 32 = 2^5 at the tapped cell
+    expect(tierAt(out, P(4, 6))).toBe(5);
     // the other two tier-3 cells are cleared
     expect(tierAt(out, P(0, 0))).toBeNull();
     expect(tierAt(out, P(1, 0))).toBeNull();

@@ -75,13 +75,13 @@ describe("Game drag + commit", () => {
     game.pointer(P(0, 1));
     game.pointer(P(0, 2));
     const result = game.commit()!;
-    // total = 3 * 2^4 = 48 -> tier floor(log2 48) = 5, landed (pre-gravity) at row 2.
-    expect(result.tier).toBe(5);
+    // total = 3 * 2^4 = 48 -> next pow2 is 64 = 2^6, landed (pre-gravity) at row 2.
+    expect(result.tier).toBe(6);
     expect(result.landed).toEqual(P(0, 2));
-    // After collapse the lone tier-5 block falls to the bottom row.
+    // After collapse the lone tier-6 block falls to the bottom row.
     expect(result.restingPos).toEqual(P(0, ROWS - 1));
-    // And that cell really holds the merged block (refill range 1..4 can't make tier 5).
-    expect(cellAt(game.grid, result.restingPos)).toEqual({ tier: 5 });
+    // And that cell really holds the merged block (refill range 1..4 can't make tier 6).
+    expect(cellAt(game.grid, result.restingPos)).toEqual({ tier: 6 });
   });
 
   it("commits a 1-length path as a no-op (no score, path cleared)", () => {

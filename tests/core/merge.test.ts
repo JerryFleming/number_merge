@@ -14,9 +14,11 @@ describe("mergeTotal", () => {
 });
 
 describe("tierFromTotal", () => {
-  it("is floor(log2(total))", () => {
-    expect(tierFromTotal(16)).toBe(4);
-    expect(tierFromTotal(24)).toBe(4); // not a power of two -> floors down
+  it("is the smallest tier whose value is >= total (ceil to next power of two)", () => {
+    expect(tierFromTotal(16)).toBe(4); // exact power of two
+    expect(tierFromTotal(24)).toBe(5); // 8+8+8 -> next pow2 is 32 = 2^5
+    expect(tierFromTotal(192)).toBe(8); // 3x64 -> 256 = 2^8
+    expect(tierFromTotal(160)).toBe(8); // 3x32 + 64 -> 256 = 2^8
     expect(tierFromTotal(2)).toBe(1);
   });
 });
@@ -46,11 +48,19 @@ describe("resolveMerge", () => {
     expect(r!.consumed).toEqual([P(0, 0), P(0, 1)]);
   });
 
-  it("floors a non-power-of-two total but banks the full score", () => {
+  it("rounds a non-power-of-two total UP to the next power of two, banks full score", () => {
     const g = gridWith({ "0,0": 3, "0,1": 3, "0,2": 3 });
     const r = resolveMerge(g, [P(0, 0), P(0, 1), P(0, 2)]);
-    expect(r!.tier).toBe(4); // floor(log2(24))
-    expect(r!.score).toBe(24n); // full sum, not 16
+    expect(r!.tier).toBe(5); // 8+8+8 = 24 -> next pow2 is 32 = 2^5
+    expect(r!.score).toBe(24n); // full summed value
     expect(r!.landed).toEqual(P(0, 2));
+  });
+
+  it("matches the original on mixed-tier chains (ceil to next power of two)", () => {
+    // three tier-5 (32) + one tier-6 (64) = 160 -> 256 = 2^8
+    const g = gridWith({ "0,0": 5, "0,1": 5, "1,1": 5, "1,0": 6 });
+    const r = resolveMerge(g, [P(0, 0), P(0, 1), P(1, 1), P(1, 0)]);
+    expect(r!.tier).toBe(8);
+    expect(r!.score).toBe(160n);
   });
 });

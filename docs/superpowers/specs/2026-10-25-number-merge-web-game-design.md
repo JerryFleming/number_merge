@@ -86,18 +86,16 @@ code, not invented.
   **`total = Σ 2^tier`** over every consumed block. (Verified:
   `CalculateMergeScore` sums `2^tier` per block as a `BigInteger`.)
   - The **merged block** appears at the **last block selected** (chain end),
-    at tier **`floor(log2(total))`** — i.e. the largest tier whose value
-    `2^tier ≤ total`. (Verified: `ConvertNumberToTierForAlgorithm` computes
-    the tier from the summed total via `Log` — a floor-log2 / bit-length.)
-    - **Leftover is discarded on purpose.** If `total` isn't an exact power
-      of two, the remainder is dropped — the result is just one block at the
-      floor tier. This matches the original by construction; it is not a bug,
-      and v1 keeps it so scoring/feel match. (E.g. three tier-3 blocks:
-      total = 3·8 = 24, result tier = floor(log2 24) = 4 → one tier-4 block
-      (value 16); 8 of value is "lost" to the floor. Score still counts the
-      full 24.)
-  - **Score** for the move = `total`, added to the running score. (Score
-    reflects the full summed value even though the placed block floors down.)
+    at tier **`ceil(log2(total))`** — i.e. the **smallest** tier whose value
+    `2^tier ≥ total` (the total rounded UP to the next power of two).
+    (Corrected against in-game observation: an earlier read had this as
+    floor; the original rounds up. E.g. three 64s → 192 → **256** = 2^8;
+    three 32s + a 64 → 160 → **256** = 2^8; three 8s → 24 → **32** = 2^5.
+    An exact power of two is unchanged: two 8s → 16 = 2^4.)
+    - **No value is lost** — rounding up is why. (Earlier drafts said leftover
+      was discarded via floor; that was wrong.)
+  - **Score** for the move = `total`, the full summed value, added to the
+    running score.
   - The **highest tier reached** (which drives spawn-tier scaling) updates
     only when a merge produces a strictly higher tier than before — it is
     **monotonic, never decreases** (verified: `ChangeMaxReachTierIfNecessary`

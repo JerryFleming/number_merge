@@ -58,8 +58,11 @@ export class BoardScene extends Phaser.Scene {
     this.computeLayout();
 
     this.cameras.main.setBackgroundColor(COLORS.bg);
-    this.cellLayer = this.add.container(0, 0);
+    // Line first so it renders BEHIND the boxes: the connector runs
+    // center-to-center and the boxes cover the overlapping part, leaving only
+    // clean segments between boxes.
     this.lineGfx = this.add.graphics();
+    this.cellLayer = this.add.container(0, 0);
 
     this.scoreText = this.add
       .text(this.scale.width / 2, SCORE_H / 2, "0", {
@@ -374,30 +377,16 @@ export class BoardScene extends Phaser.Scene {
     const path = this.model.path;
     if (path.length < 2) return;
     this.lineGfx.lineStyle(Math.max(6, this.size * 0.12), COLORS.line, 0.9);
-    // Draw each segment between the EDGES of adjacent boxes rather than their
-    // centers: pull both endpoints in from the centers by the box half-size
-    // along the direction joining them.
-    // Box geometry matches redraw(): side s, corner radius r (rounded).
-    const s = this.size - this.size * 0.06 * 2;
-    const half = s / 2;
-    const r = s * 0.18;
-    // Where a diagonal meets the ROUNDED corner: the arc's 45-degree point.
-    const diag = half - r + r / Math.SQRT2;
-    for (let i = 1; i < path.length; i++) {
-      const a = cellCenter(path[i - 1], this.origin, this.size);
-      const b = cellCenter(path[i], this.origin, this.size);
-      const dirX = Math.sign(b.x - a.x);
-      const dirY = Math.sign(b.y - a.y);
-      // Diagonal step: stop on the rounded corner. Orthogonal step: stop on the
-      // side's midpoint (offset only on the moving axis).
-      const diagonal = dirX !== 0 && dirY !== 0;
-      const ox = dirX * (diagonal ? diag : half);
-      const oy = dirY * (diagonal ? diag : half);
-      this.lineGfx.beginPath();
-      this.lineGfx.moveTo(a.x + ox, a.y + oy);
-      this.lineGfx.lineTo(b.x - ox, b.y - oy);
-      this.lineGfx.strokePath();
-    }
+    // Straight center-to-center polyline. It renders behind the boxes (see
+    // create()), so the boxes mask the parts that cross them and only the
+    // connectors between cells show.
+    this.lineGfx.beginPath();
+    path.forEach((p, i) => {
+      const c = cellCenter(p, this.origin, this.size);
+      if (i === 0) this.lineGfx.moveTo(c.x, c.y);
+      else this.lineGfx.lineTo(c.x, c.y);
+    });
+    this.lineGfx.strokePath();
   }
 
   private animateMerge(landed: Pos): void {

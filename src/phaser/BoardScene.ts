@@ -14,6 +14,7 @@ import {
 import { COLORS, tierColor, tierLabel } from "./theme";
 import { PowerBar } from "./PowerBar";
 import { GameOverOverlay } from "./GameOver";
+import { WebAudioSfx, type Sfx } from "./sound";
 
 /**
  * Renders the board from the Game's state, drives the retractable drag, and
@@ -32,6 +33,8 @@ export class BoardScene extends Phaser.Scene {
 
   private powerBar!: PowerBar;
   private gameOver!: GameOverOverlay;
+  private sfx: Sfx = new WebAudioSfx();
+  private muteButton!: Phaser.GameObjects.Text;
 
   // Swap needs two taps; hold the first here.
   private swapFirst: Pos | null = null;
@@ -60,6 +63,24 @@ export class BoardScene extends Phaser.Scene {
     this.powerBar = new PowerBar(this, (p) => this.onPowerSelected(p));
     this.gameOver = new GameOverOverlay(this, () => this.restart());
 
+    this.sfx.setMuted(this.loadMuted());
+    this.muteButton = this.add
+      .text(this.scale.width - 12, SCORE_H / 2, this.sfx.muted ? "🔇" : "🔊", {
+        fontSize: "26px",
+      })
+      .setOrigin(1, 0.5)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(500);
+    this.muteButton.on("pointerdown", (
+      _p: Phaser.Input.Pointer,
+      _x: number,
+      _y: number,
+      e: Phaser.Types.Input.EventData,
+    ) => {
+      e.stopPropagation?.();
+      this.toggleMute();
+    });
+
     this.input.on("pointerdown", this.onPointerDown, this);
     this.input.on("pointermove", this.onPointerMove, this);
     this.input.on("pointerup", this.onPointerUp, this);
@@ -76,6 +97,7 @@ export class BoardScene extends Phaser.Scene {
   private onResize(): void {
     this.computeLayout();
     this.scoreText?.setX(this.scale.width / 2);
+    this.muteButton?.setPosition(this.scale.width - 12, SCORE_H / 2);
     this.powerBar?.layout();
     this.gameOver?.layout();
     this.redraw();
@@ -88,6 +110,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
+    this.sfx.unlock(); // first user gesture satisfies browser autoplay rules
     if (this.model.isOver) return;
     const pos = this.pointerToPos(pointer);
     if (!pos) return;
@@ -99,6 +122,7 @@ export class BoardScene extends Phaser.Scene {
     }
     this.dragging = true;
     this.model.pointer(pos);
+    if (this.model.path.length === 1) this.sfx.play("select");
     this.redraw();
   }
 
@@ -108,16 +132,22 @@ export class BoardScene extends Phaser.Scene {
     if (!pos) return;
     const before = this.model.path.length;
     this.model.pointer(pos);
-    if (this.model.path.length !== before) this.redraw();
+    if (this.model.path.length !== before) {
+      if (this.model.path.length > before) this.sfx.play("select");
+      this.redraw();
+    }
   }
 
   private onPointerUp(): void {
     if (!this.dragging) return;
     this.dragging = false;
+    const chainLength = this.model.path.length;
     const result = this.model.commit();
     if (result) {
+      this.sfx.play("merge", chainLength);
       this.animateMerge(result.restingPos);
     } else {
+      if (chainLength > 0) this.sfx.play("invalid");
       this.redraw();
     }
     this.scoreText.setText(this.model.score.toString());
@@ -145,18 +175,21 @@ export class BoardScene extends Phaser.Scene {
     } else if (power === "magnet") {
       const ok = this.model.useMagnet(pos);
       if (!ok) {
+        this.sfx.play("invalid");
         this.flashInvalid(pos);
         return; // not consumed; stay in targeting
       }
     } else if (power === "swap") {
       if (!this.swapFirst) {
         this.swapFirst = pos;
+        this.sfx.play("select");
         this.redraw();
         return;
       }
       this.model.useSwap(this.swapFirst, pos);
       this.swapFirst = null;
     }
+    this.sfx.play("powerup");
     this.powerBar.clearActive();
     this.scoreText.setText(this.model.score.toString());
     this.redraw();
@@ -172,7 +205,31 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private checkGameOver(): void {
-    if (this.model.isOver) this.gameOver.show(this.model.score);
+    if (this.model.isOver) {
+      this.sfx.play("gameover");
+      this.gameOver.show(this.model.score);
+    }
+  }
+
+  private toggleMute(): void {
+    this.sfx.unlock();
+    const muted = !this.sfx.muted;
+    this.sfx.setMuted(muted);
+    this.muteButton.setText(muted ? "🔇" : "🔊");
+    try {
+      localStorage.setItem("nm_muted", muted ? "1" : "0");
+    } catch {
+      /* storage may be unavailable (private mode, blocked) — ignore */
+    }
+    if (!muted) this.sfx.play("select"); // audible confirmation on unmute
+  }
+
+  private loadMuted(): boolean {
+    try {
+      return localStorage.getItem("nm_muted") === "1";
+    } catch {
+      return false;
+    }
   }
 
   // --- rendering ----------------------------------------------------------

@@ -29,6 +29,7 @@ export class BoardScene extends Phaser.Scene {
 
   private cellLayer!: Phaser.GameObjects.Container;
   private lineGfx!: Phaser.GameObjects.Graphics;
+  private boardMaskG!: Phaser.GameObjects.Graphics;
   private scoreText!: Phaser.GameObjects.Text;
   private dragging = false;
 
@@ -63,6 +64,11 @@ export class BoardScene extends Phaser.Scene {
     // clean segments between boxes.
     this.lineGfx = this.add.graphics();
     this.cellLayer = this.add.container(0, 0);
+    // Clip the cell layer to the board area so falling / spawning blocks are
+    // invisible until they enter the grid (no numbers floating above the top).
+    this.boardMaskG = this.make.graphics({});
+    this.cellLayer.setMask(this.boardMaskG.createGeometryMask());
+    this.updateBoardMask();
 
     this.scoreText = this.add
       .text(this.scale.width / 2, SCORE_H / 2, "0", {
@@ -122,8 +128,22 @@ export class BoardScene extends Phaser.Scene {
     this.origin = gridOrigin(this.scale.width, this.scale.height, this.size);
   }
 
+  /** Size the clip mask to the exact board rectangle. */
+  private updateBoardMask(): void {
+    if (!this.boardMaskG) return;
+    this.boardMaskG.clear();
+    this.boardMaskG.fillStyle(0xffffff);
+    this.boardMaskG.fillRect(
+      this.origin.x,
+      this.origin.y,
+      COLS * this.size,
+      ROWS * this.size,
+    );
+  }
+
   private onResize(): void {
     this.computeLayout();
+    this.updateBoardMask();
     this.scoreText?.setX(this.scale.width / 2);
     this.muteButton?.setPosition(this.scale.width - 12, SCORE_H / 2);
     this.restartButton?.setPosition(this.scale.width - 52, SCORE_H / 2);
@@ -619,7 +639,6 @@ export class BoardScene extends Phaser.Scene {
           });
         }
         this.spawnMergeBurst(c.x, c.y, impactColor);
-        this.cameras.main.shake(160, 0.006);
         this.tweens.add({
           targets: hammer,
           rotation: Phaser.Math.DegToRad(-45),

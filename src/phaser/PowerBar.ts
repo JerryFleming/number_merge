@@ -9,7 +9,7 @@ interface Button {
   root: Phaser.GameObjects.Container;
   glow: Phaser.GameObjects.Graphics;
   body: Phaser.GameObjects.Graphics;
-  icon: Phaser.GameObjects.Text;
+  icon: Phaser.GameObjects.Graphics;
   text: Phaser.GameObjects.Text;
   bw: number;
   bh: number;
@@ -28,24 +28,18 @@ export class PowerBar {
     private scene: Phaser.Scene,
     private onSelect: (power: PowerUp) => void,
   ) {
-    const defs: Array<{ power: PowerUp; icon: string; label: string }> = [
-      { power: "hammer", icon: "🔨", label: "Hammer" },
-      { power: "magnet", icon: "🧲", label: "Magnet" },
-      { power: "swap", icon: "🔀", label: "Swap" },
+    const defs: Array<{ power: PowerUp; label: string }> = [
+      { power: "hammer", label: "Hammer" },
+      { power: "magnet", label: "Magnet" },
+      { power: "swap", label: "Swap" },
     ];
     defs.forEach((d, i) => {
       const glow = scene.add.graphics();
       const body = scene.add.graphics();
-      // Icon: large, fixed-size, fixed-width box with centered alignment so all
-      // three emoji occupy an identical footprint regardless of their metrics.
-      const icon = scene.add
-        .text(0, 0, d.icon, {
-          fontFamily: "system-ui, sans-serif",
-          fontSize: "34px",
-          align: "center",
-          fixedWidth: 44,
-        })
-        .setOrigin(0.5);
+      // Vector icon drawn with Graphics so all three share an identical visual
+      // size (emoji rendered at inconsistent sizes across fonts).
+      const icon = scene.add.graphics();
+      this.drawIcon(icon, d.power, 30);
       const text = scene.add
         .text(0, 0, d.label, {
           fontFamily: "system-ui, sans-serif",
@@ -88,6 +82,57 @@ export class PowerBar {
   clearActive(): void {
     this.active = null;
     this.render();
+  }
+
+  /** Draw a power-up icon with Graphics, centered on (0,0), fitting a sz box. */
+  private drawIcon(g: Phaser.GameObjects.Graphics, power: PowerUp, sz: number): void {
+    g.clear();
+    const u = sz / 2; // half-extent
+    if (power === "hammer") {
+      // Angled hammer: grey head + brown handle.
+      g.save();
+      g.rotateCanvas(Phaser.Math.DegToRad(-35));
+      g.fillStyle(0x8a5a2b, 1);
+      g.fillRoundedRect(-u * 0.14, -u * 0.1, u * 0.28, u * 1.2, u * 0.12);
+      g.fillStyle(0x9aa3b2, 1);
+      g.fillRoundedRect(-u * 0.75, -u * 0.55, u * 1.5, u * 0.5, u * 0.14);
+      g.fillStyle(0xc7cdd8, 1);
+      g.fillRoundedRect(-u * 0.75, -u * 0.55, u * 0.42, u * 0.5, u * 0.14);
+      g.restore();
+    } else if (power === "magnet") {
+      // Horseshoe magnet: red U body with two tips (grey) at the bottom.
+      g.lineStyle(u * 0.5, 0xe63946, 1);
+      g.beginPath();
+      g.arc(0, -u * 0.1, u * 0.62, Phaser.Math.DegToRad(180), 0, false);
+      g.strokePath();
+      // Vertical legs.
+      g.fillStyle(0xe63946, 1);
+      g.fillRect(-u * 0.87, -u * 0.1, u * 0.5, u * 0.8);
+      g.fillRect(u * 0.37, -u * 0.1, u * 0.5, u * 0.8);
+      // Pole tips.
+      g.fillStyle(0xdfe4ec, 1);
+      g.fillRect(-u * 0.87, u * 0.6, u * 0.5, u * 0.3);
+      g.fillRect(u * 0.37, u * 0.6, u * 0.5, u * 0.3);
+    } else {
+      // Swap: two horizontal arrows pointing opposite ways, one above the other.
+      g.fillStyle(0xffffff, 1);
+      const bar = u * 0.26;
+      const half = u * 0.72;
+      // Top arrow -> right
+      g.fillRect(-half, -u * 0.42 - bar / 2, half * 1.6, bar);
+      g.fillTriangle(
+        half * 0.6, -u * 0.42 - bar,
+        half * 0.6, -u * 0.42 + bar,
+        half * 1.0, -u * 0.42,
+      );
+      // Bottom arrow <- left
+      g.fillRect(-half * 0.6, u * 0.42 - bar / 2, half * 1.6, bar);
+      g.fillTriangle(
+        -half * 0.6, u * 0.42 - bar,
+        -half * 0.6, u * 0.42 + bar,
+        -half * 1.0, u * 0.42,
+      );
+    }
   }
 
   // --- animations ---------------------------------------------------------

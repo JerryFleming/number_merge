@@ -5,10 +5,11 @@ import { COLORS } from "./theme";
 
 interface Button {
   power: PowerUp;
-  /** Centered container holding glow + body + label; scaled for animations. */
+  /** Centered container holding glow + body + icon + label; scaled for anims. */
   root: Phaser.GameObjects.Container;
   glow: Phaser.GameObjects.Graphics;
   body: Phaser.GameObjects.Graphics;
+  icon: Phaser.GameObjects.Text;
   text: Phaser.GameObjects.Text;
   bw: number;
   bh: number;
@@ -27,24 +28,34 @@ export class PowerBar {
     private scene: Phaser.Scene,
     private onSelect: (power: PowerUp) => void,
   ) {
-    const defs: Array<{ power: PowerUp; label: string }> = [
-      { power: "hammer", label: "🔨 Hammer" },
-      { power: "magnet", label: "🧲 Magnet" },
-      { power: "swap", label: "🔀 Swap" },
+    const defs: Array<{ power: PowerUp; icon: string; label: string }> = [
+      { power: "hammer", icon: "🔨", label: "Hammer" },
+      { power: "magnet", icon: "🧲", label: "Magnet" },
+      { power: "swap", icon: "🔀", label: "Swap" },
     ];
     defs.forEach((d, i) => {
       const glow = scene.add.graphics();
       const body = scene.add.graphics();
+      // Icon: large, fixed-size, fixed-width box with centered alignment so all
+      // three emoji occupy an identical footprint regardless of their metrics.
+      const icon = scene.add
+        .text(0, 0, d.icon, {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: "34px",
+          align: "center",
+          fixedWidth: 44,
+        })
+        .setOrigin(0.5);
       const text = scene.add
         .text(0, 0, d.label, {
           fontFamily: "system-ui, sans-serif",
-          fontSize: "18px",
+          fontSize: "14px",
           color: COLORS.text,
           fontStyle: "bold",
         })
         .setOrigin(0.5);
-      const root = scene.add.container(0, 0, [glow, body, text]);
-      const btn: Button = { power: d.power, root, glow, body, text, bw: 10, bh: 10 };
+      const root = scene.add.container(0, 0, [glow, body, icon, text]);
+      const btn: Button = { power: d.power, root, glow, body, icon, text, bw: 10, bh: 10 };
 
       root.setInteractive(
         new Phaser.Geom.Rectangle(-5, -5, 10, 10),
@@ -143,6 +154,9 @@ export class PowerBar {
       btn.bw = bw;
       btn.bh = bh;
       btn.root.setPosition(cx, cy);
+      // Icon in the upper portion, label beneath it (both centered in x).
+      btn.icon.setPosition(0, -bh * 0.16);
+      btn.text.setPosition(0, bh * 0.28);
       (btn.root.input!.hitArea as Phaser.Geom.Rectangle).setTo(
         -bw / 2,
         -bh / 2,

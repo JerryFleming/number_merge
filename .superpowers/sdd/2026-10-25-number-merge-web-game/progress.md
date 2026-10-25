@@ -19,3 +19,4 @@ Task 1: complete (initial..168c821, tests: vitest run tests/core/types.test.ts -
 Task 2: complete (commits 168c821..05cdd7a, tests: vitest run tests/core/board.test.ts -> 7/7 pass)
 Task 3: complete (commits 05cdd7a..1d14543, tests: vitest run tests/core/connect.test.ts -> 12/12 pass) [covers Review Focus: backtrack-to-head]
 Task 4: complete (commits 1d14543..f1fa277, tests: vitest run tests/core/merge.test.ts -> 5/5 pass) [covers Review Focus: non-power-of-two total]
+Task 5: complete (commits f1fa277..91ae17e, tests: vitest run spawn+seed -> 4/4 pass) [covers Review Focus: degenerate seed re-roll]

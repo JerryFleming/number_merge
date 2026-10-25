@@ -37,6 +37,11 @@ export class BoardScene extends Phaser.Scene {
   private sfx: Sfx = new WebAudioSfx();
   private muteButton!: Phaser.GameObjects.Text;
 
+  /** Per-cell extra rows to offset UPWARD while the gravity drop plays.
+   * Keyed "col,row" of the block's FINAL cell; 0 when settled. */
+  private fallOffset = new Map<string, number>();
+  private settleTween?: Phaser.Tweens.Tween;
+
   // Swap needs two taps; hold the first here.
   private swapFirst: Pos | null = null;
 
@@ -150,6 +155,7 @@ export class BoardScene extends Phaser.Scene {
     const result = this.model.commit();
     if (result) {
       this.sfx.play("merge", chainLength);
+      this.animateSettle();
       this.animateMerge(result.restingPos);
       this.save();
     } else {
@@ -199,7 +205,7 @@ export class BoardScene extends Phaser.Scene {
     this.powerBar.clearActive();
     this.scoreText.setText(this.model.score.toString());
     this.save();
-    this.redraw();
+    this.animateSettle();
     this.checkGameOver();
   }
 
@@ -294,6 +300,10 @@ export class BoardScene extends Phaser.Scene {
         const pos: Pos = { col, row };
         const c = cellAt(this.model.grid, pos);
         const center = cellCenter(pos, this.origin, this.size);
+        // Apply any in-progress gravity drop: the block starts offset upward
+        // by `fallRows` cells and eases down to its final center.
+        const fallRows = this.fallOffset.get(`${col},${row}`) ?? 0;
+        center.y -= fallRows * this.size;
         const inset = this.size * 0.06;
         const s = this.size - inset * 2;
 
@@ -375,6 +385,49 @@ export class BoardScene extends Phaser.Scene {
         duration: 220,
       });
     }
+  }
+
+  /** Animate the most recent gravity settle: every block that fell (or spawned)
+   * slides down from its start offset to its final cell. */
+  private animateSettle(): void {
+    this.settleTween?.remove();
+    this.fallOffset.clear();
+    let maxFall = 0;
+    // Build the final-cell -> rows-fallen map by block identity.
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const c = this.model.grid[row][col];
+        if (!c) continue;
+        const fell = this.model.lastSettle.get(c) ?? 0;
+        if (fell > 0) {
+          this.fallOffset.set(`${col},${row}`, fell);
+          if (fell > maxFall) maxFall = fell;
+        }
+      }
+    }
+    if (maxFall === 0) {
+      this.redraw();
+      return;
+    }
+    // Slow, visible drop: scale duration with the longest fall.
+    const progress = { t: 1 };
+    const base = this.fallOffset;
+    this.settleTween = this.tweens.add({
+      targets: progress,
+      t: 0,
+      duration: 180 + maxFall * 110,
+      ease: "Bounce.Out",
+      onUpdate: () => {
+        this.fallOffset = new Map(
+          [...base].map(([k, rows]) => [k, rows * progress.t]),
+        );
+        this.redraw();
+      },
+      onComplete: () => {
+        this.fallOffset.clear();
+        this.redraw();
+      },
+    });
   }
 
   private magnetEligible(pos: Pos): boolean {

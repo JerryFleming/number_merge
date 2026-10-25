@@ -27,6 +27,7 @@ export class Game {
   private _reachedTier: Tier = 1;
   private _over = false;
   private _targeting: PowerUp | null = null;
+  private _lastSettle = new Map<Cell, number>();
   private readonly rng: () => number;
 
   constructor(opts: GameOptions = {}) {
@@ -55,6 +56,11 @@ export class Game {
   get targeting(): PowerUp | null {
     return this._targeting;
   }
+  /** How many rows each current block fell in the most recent settle (by block
+   * identity). Used by the view to animate gravity; empty after restore/new. */
+  get lastSettle(): ReadonlyMap<Cell, number> {
+    return this._lastSettle;
+  }
 
   /** Reset to a fresh, solvable random board. */
   startNew(): void {
@@ -63,6 +69,7 @@ export class Game {
     this._score = 0n;
     this._reachedTier = 1;
     this._targeting = null;
+    this._lastSettle = new Map();
     this.recomputeOver();
   }
 
@@ -80,6 +87,7 @@ export class Game {
     this._reachedTier = state.reachedTier;
     this._path = [];
     this._targeting = null;
+    this._lastSettle = new Map();
     this.recomputeOver();
   }
 
@@ -143,7 +151,8 @@ export class Game {
   }
 
   useSwap(a: Pos, b: Pos): boolean {
-    // Swap does not shift or refill: positions just exchange.
+    // Swap does not shift or refill: positions just exchange, no fall to animate.
+    this._lastSettle = new Map();
     this._grid = swap(this._grid, a, b);
     this._targeting = null;
     this.recomputeOver();
@@ -163,8 +172,31 @@ export class Game {
   }
 
   private settleBoard(): void {
+    // Record each block's row before collapse so the view can animate the drop.
+    const rowBefore = new Map<Cell, number>();
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const c = this._grid[row][col];
+        if (c) rowBefore.set(c, row);
+      }
+    }
+
     this._grid = collapseColumns(this._grid);
     this._grid = refill(this._grid, spawnRange(this._reachedTier), this.rng);
+
+    // After settle, compute how far each block fell. Blocks absent from
+    // rowBefore are freshly spawned by refill — treat them as dropping in
+    // from above the top edge of their column.
+    const motion = new Map<Cell, number>();
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const c = this._grid[row][col];
+        if (!c) continue;
+        const prev = rowBefore.get(c);
+        motion.set(c, prev === undefined ? row + 1 : row - prev);
+      }
+    }
+    this._lastSettle = motion;
     this.recomputeOver();
   }
 

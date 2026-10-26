@@ -14,7 +14,7 @@ import {
 import { COLORS, tierColor, tierLabel } from "./theme";
 import { PowerBar } from "./PowerBar";
 import { GameOverOverlay } from "./GameOver";
-import { WebAudioSfx, type Sfx } from "./sound";
+import { PhaserSfx, AUDIO_ASSETS, type Sfx } from "./sound";
 import { serialize, deserialize } from "../core/persistence";
 import { IMAGE_ASSETS, TEX } from "./assets";
 
@@ -38,7 +38,7 @@ export class BoardScene extends Phaser.Scene {
 
   private powerBar!: PowerBar;
   private gameOver!: GameOverOverlay;
-  private sfx: Sfx = new WebAudioSfx();
+  private sfx!: Sfx;
   private muteButton!: Phaser.GameObjects.Text;
   private restartButton!: Phaser.GameObjects.Container;
   private resumedOnLoad = false;
@@ -59,9 +59,11 @@ export class BoardScene extends Phaser.Scene {
 
   preload(): void {
     for (const [key, url] of IMAGE_ASSETS) this.load.image(key, url);
+    for (const [key, url] of AUDIO_ASSETS) this.load.audio(key, url);
   }
 
   create(): void {
+    this.sfx = new PhaserSfx(this);
     this.model = new Game();
     const resumed = this.resumeIfSaved(); // auto-resume a saved board, if any
     this.resumedOnLoad = resumed;
@@ -250,7 +252,7 @@ export class BoardScene extends Phaser.Scene {
     });
     const result = this.model.commit();
     if (result) {
-      this.sfx.play("merge", chainLength);
+      this.sfx.play("merge");
       this.save();
       // Phase 1: consumed blocks fly into the landed cell. Phase 2 (settle +
       // result pop) runs after they arrive.
@@ -288,7 +290,7 @@ export class BoardScene extends Phaser.Scene {
     if (power === "hammer") {
       const hit = cellAt(this.model.grid, pos);
       this.model.useHammer(pos);
-      this.sfx.play("powerup");
+      this.sfx.play("hammer");
       this.powerBar.clearActive();
       // A hammer swings down and knocks the struck block, then the board falls.
       this.animateHammer(pos, hit ? hit.tier : null, () => {
@@ -308,7 +310,7 @@ export class BoardScene extends Phaser.Scene {
         this.flashInvalid(pos);
         return; // not consumed; stay in targeting
       }
-      this.sfx.play("powerup");
+      this.sfx.play("magnet");
       this.powerBar.clearActive();
       // Pull every gathered block into the tapped cell, then settle + pop.
       this.animateMergeCollect(gathered, pos, () => {
@@ -332,7 +334,7 @@ export class BoardScene extends Phaser.Scene {
     const cb = cellAt(this.model.grid, b);
     this.swapFirst = null;
     this.model.useSwap(a, b);
-    this.sfx.play("powerup");
+    this.sfx.play("swap");
     this.powerBar.clearActive();
     // Slide the two blocks past each other to their new cells.
     this.animateSwap(a, b, ca ? ca.tier : null, cb ? cb.tier : null, () => {

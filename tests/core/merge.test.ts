@@ -43,24 +43,24 @@ describe("resolveMerge", () => {
     const r = resolveMerge(g, [P(0, 0), P(0, 1)]);
     expect(r).not.toBeNull();
     expect(r!.tier).toBe(4);
-    expect(r!.score).toBe(16n);
+    expect(r!.score).toBe(16n); // the merged block's value, 2^4
     expect(r!.landed).toEqual(P(0, 1));
     expect(r!.consumed).toEqual([P(0, 0), P(0, 1)]);
   });
 
-  it("rounds a non-power-of-two total UP to the next power of two, banks full score", () => {
+  it("scores the merged block's value, not the summed total", () => {
     const g = gridWith({ "0,0": 3, "0,1": 3, "0,2": 3 });
     const r = resolveMerge(g, [P(0, 0), P(0, 1), P(0, 2)]);
     expect(r!.tier).toBe(5); // 8+8+8 = 24 -> next pow2 is 32 = 2^5
-    expect(r!.score).toBe(24n); // full summed value
+    expect(r!.score).toBe(32n); // the merged block's value 2^5, not the 24 sum
     expect(r!.landed).toEqual(P(0, 2));
   });
 
-  it("matches the original on mixed-tier chains (ceil to next power of two)", () => {
-    // three tier-5 (32) + one tier-6 (64) = 160 -> 256 = 2^8
+  it("matches the original on mixed-tier chains (scores the result value)", () => {
+    // three tier-5 (32) + one tier-6 (64) = 160 -> result 256 = 2^8
     const g = gridWith({ "0,0": 5, "0,1": 5, "1,1": 5, "1,0": 6 });
     const r = resolveMerge(g, [P(0, 0), P(0, 1), P(1, 1), P(1, 0)]);
     expect(r!.tier).toBe(8);
-    expect(r!.score).toBe(160n);
+    expect(r!.score).toBe(256n); // 2^8, the merged block's value
   });
 });

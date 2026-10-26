@@ -44,7 +44,7 @@ describe("Game.startNew", () => {
 });
 
 describe("Game drag + commit", () => {
-  it("commits an equal pair: scores the total, places the merged block, refills", () => {
+  it("commits an equal pair: scores the merged value, places the block, refills", () => {
     // Two tier-3 blocks adjacent in column 0; the rest tier 9.
     const game = new Game({
       rng: fixedRng(0),
@@ -54,7 +54,7 @@ describe("Game drag + commit", () => {
     game.pointer(P(0, 1));
     const result = game.commit();
     expect(result).not.toBeNull();
-    expect(game.score).toBe(16n); // 2^3 + 2^3
+    expect(game.score).toBe(16n); // merged block's value, 2^4
     expect(game.reachedTier).toBe(4); // merged tier
     expect(fullBoard(game)).toBe(true); // consumed cells refilled
   });

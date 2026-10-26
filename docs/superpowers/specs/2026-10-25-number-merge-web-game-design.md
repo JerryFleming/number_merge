@@ -83,8 +83,8 @@ code, not invented.
   `CalculateBlockItemsTier` requires `list.Count >= 2`.)
 - If invalid/too short, the chain just clears with no merge, no score.
 - If valid: all chained blocks are consumed. Compute
-  **`total = Σ 2^tier`** over every consumed block. (Verified:
-  `CalculateMergeScore` sums `2^tier` per block as a `BigInteger`.)
+  **`total = Σ 2^tier`** over every consumed block (used to pick the merged
+  tier, below).
   - The **merged block** appears at the **last block selected** (chain end),
     at tier **`ceil(log2(total))`** — i.e. the **smallest** tier whose value
     `2^tier ≥ total` (the total rounded UP to the next power of two).
@@ -94,8 +94,11 @@ code, not invented.
     An exact power of two is unchanged: two 8s → 16 = 2^4.)
     - **No value is lost** — rounding up is why. (Earlier drafts said leftover
       was discarded via floor; that was wrong.)
-  - **Score** for the move = `total`, the full summed value, added to the
-    running score.
+  - **Score** for the move = the **merged block's value**, `2^merged-tier`,
+    added to the running score. (Corrected against in-game observation: the
+    original banks the result's value, not the summed total — so three 64s
+    merging to 256 adds **256** to the score, not 192, and three 8s → 32 adds
+    **32**, not 24. For an equal pair the two are the same: two 8s → 16.)
   - The **highest tier reached** (which drives spawn-tier scaling) updates
     only when a merge produces a strictly higher tier than before — it is
     **monotonic, never decreases** (verified: `ChangeMaxReachTierIfNecessary`

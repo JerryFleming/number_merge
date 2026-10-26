@@ -9,17 +9,17 @@ export const COLORS = {
   text: "#ffffff",
 };
 
-// Per-tier block colors matching the original game. Tiers 4–13 (16…8192) were
-// sampled directly from an in-game board screenshot; tiers 1–3 (2/4/8) from the
-// app icon; tier 12 (4096) is interpolated (not seen in either). The array is
-// indexed by tier-1 and cycles for tiers beyond it.
+// Per-tier block colors matching the original game, sampled from in-game
+// board screenshots. Tiers 1–6 (2…64) from a full-res capture; tiers 7–11 & 13
+// (128…2048, 8192) from an earlier capture; tier 12 (4096) is interpolated
+// (never seen). Indexed by tier-1; cycles for tiers beyond it.
 const TIER_HUES = [
-  0xf4677f, // 1  (2)    coral pink
-  0x916dad, // 2  (4)    purple
-  0xed7128, // 3  (8)    orange
-  0xb8482b, // 4  (16)   rust red
-  0x4ba480, // 5  (32)   green
-  0x4d6ced, // 6  (64)   blue
+  0x287696, // 1  (2)    teal
+  0xa23b72, // 2  (4)    magenta
+  0xf18f01, // 3  (8)    orange
+  0xc73e1d, // 4  (16)   rust red
+  0x06a77d, // 5  (32)   green
+  0x446df6, // 6  (64)   blue
   0xe8a3bb, // 7  (128)  pink
   0xc9d7fc, // 8  (256)  light periwinkle
   0xecbf6f, // 9  (512)  gold / tan

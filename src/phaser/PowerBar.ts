@@ -1,14 +1,16 @@
 import Phaser from "phaser";
 import type { PowerUp } from "../core/game";
 import { POWER_BAR_H, bottomInset } from "./layout";
+import { powerTexture } from "./assets";
 
 interface Button {
   power: PowerUp;
-  /** Centered container holding glow + body + icon + label; scaled for anims. */
+  /** Centered container holding glow + body + icon + count; scaled for anims. */
   root: Phaser.GameObjects.Container;
   glow: Phaser.GameObjects.Graphics;
   body: Phaser.GameObjects.Graphics;
-  icon: Phaser.GameObjects.Graphics;
+  /** The original game's power-up icon image. */
+  icon: Phaser.GameObjects.Image;
   /** Usage count shown in the top-right corner. */
   count: Phaser.GameObjects.Text;
   bw: number;
@@ -35,10 +37,8 @@ export class PowerBar {
     defs.forEach((d) => {
       const glow = scene.add.graphics();
       const body = scene.add.graphics();
-      // Vector icon drawn with Graphics so all three share an identical visual
-      // size (emoji rendered at inconsistent sizes across fonts).
-      const icon = scene.add.graphics();
-      this.drawIcon(icon, d.power, 34);
+      // The original game's power-up icon image (sized in layout()).
+      const icon = scene.add.image(0, 0, powerTexture(d.power)).setOrigin(0.5);
       // Usage count in the top-right corner; hidden until first used.
       const count = scene.add
         .text(0, 0, "0", {
@@ -94,57 +94,6 @@ export class PowerBar {
     });
   }
 
-  /** Draw a power-up icon with Graphics, centered on (0,0), fitting a sz box. */
-  private drawIcon(g: Phaser.GameObjects.Graphics, power: PowerUp, sz: number): void {
-    g.clear();
-    const u = sz / 2; // half-extent
-    if (power === "hammer") {
-      // Angled hammer: grey head + brown handle.
-      g.save();
-      g.rotateCanvas(Phaser.Math.DegToRad(-35));
-      g.fillStyle(0x8a5a2b, 1);
-      g.fillRoundedRect(-u * 0.14, -u * 0.1, u * 0.28, u * 1.2, u * 0.12);
-      g.fillStyle(0x9aa3b2, 1);
-      g.fillRoundedRect(-u * 0.75, -u * 0.55, u * 1.5, u * 0.5, u * 0.14);
-      g.fillStyle(0xc7cdd8, 1);
-      g.fillRoundedRect(-u * 0.75, -u * 0.55, u * 0.42, u * 0.5, u * 0.14);
-      g.restore();
-    } else if (power === "magnet") {
-      // Horseshoe magnet: red U body with two tips (grey) at the bottom.
-      g.lineStyle(u * 0.5, 0xe63946, 1);
-      g.beginPath();
-      g.arc(0, -u * 0.1, u * 0.62, Phaser.Math.DegToRad(180), 0, false);
-      g.strokePath();
-      // Vertical legs.
-      g.fillStyle(0xe63946, 1);
-      g.fillRect(-u * 0.87, -u * 0.1, u * 0.5, u * 0.8);
-      g.fillRect(u * 0.37, -u * 0.1, u * 0.5, u * 0.8);
-      // Pole tips.
-      g.fillStyle(0xdfe4ec, 1);
-      g.fillRect(-u * 0.87, u * 0.6, u * 0.5, u * 0.3);
-      g.fillRect(u * 0.37, u * 0.6, u * 0.5, u * 0.3);
-    } else {
-      // Swap: two horizontal arrows pointing opposite ways, one above the other.
-      g.fillStyle(0xffffff, 1);
-      const bar = u * 0.26;
-      const half = u * 0.72;
-      // Top arrow -> right
-      g.fillRect(-half, -u * 0.42 - bar / 2, half * 1.6, bar);
-      g.fillTriangle(
-        half * 0.6, -u * 0.42 - bar,
-        half * 0.6, -u * 0.42 + bar,
-        half * 1.0, -u * 0.42,
-      );
-      // Bottom arrow <- left
-      g.fillRect(-half * 0.6, u * 0.42 - bar / 2, half * 1.6, bar);
-      g.fillTriangle(
-        -half * 0.6, u * 0.42 - bar,
-        -half * 0.6, u * 0.42 + bar,
-        -half * 1.0, u * 0.42,
-      );
-    }
-  }
-
   // --- animations ---------------------------------------------------------
 
   /** Quick press bounce on tap. */
@@ -197,10 +146,13 @@ export class PowerBar {
       btn.bw = bw;
       btn.bh = bh;
       btn.root.setPosition(cx, cy);
-      // Icon centered in the button (labels removed; icons only).
-      btn.icon.setPosition(0, 0);
-      // Count badge on the top-right of the round body (≈45° on the circle).
+      // Icon centered in the round body, scaled uniformly to fit within it
+      // (preserve each icon's aspect ratio — they differ slightly).
       const rr = Math.min(bw, bh) / 2;
+      const target = rr * 1.5;
+      const srcMax = Math.max(btn.icon.width, btn.icon.height) || target;
+      btn.icon.setPosition(0, 0).setScale(target / srcMax);
+      // Count badge on the top-right of the round body (≈45° on the circle).
       btn.count.setPosition(rr * 0.72, -rr * 0.72);
       // Hit area = the circle's bounding square, so taps match the visible body.
       (btn.root.input!.hitArea as Phaser.Geom.Rectangle).setTo(

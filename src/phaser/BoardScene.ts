@@ -16,6 +16,7 @@ import { PowerBar } from "./PowerBar";
 import { GameOverOverlay } from "./GameOver";
 import { WebAudioSfx, type Sfx } from "./sound";
 import { serialize, deserialize } from "../core/persistence";
+import { IMAGE_ASSETS, TEX } from "./assets";
 
 /**
  * Renders the board from the Game's state, drives the retractable drag, and
@@ -31,6 +32,7 @@ export class BoardScene extends Phaser.Scene {
   private lineGfx!: Phaser.GameObjects.Graphics;
   private boardMaskG!: Phaser.GameObjects.Graphics;
   private titleText!: Phaser.GameObjects.Text;
+  private gameIcon!: Phaser.GameObjects.Image;
   private scoreText!: Phaser.GameObjects.Text;
   private dragging = false;
 
@@ -55,6 +57,10 @@ export class BoardScene extends Phaser.Scene {
 
   private static readonly SAVE_KEY = "nm_save";
 
+  preload(): void {
+    for (const [key, url] of IMAGE_ASSETS) this.load.image(key, url);
+  }
+
   create(): void {
     this.model = new Game();
     const resumed = this.resumeIfSaved(); // auto-resume a saved board, if any
@@ -73,14 +79,20 @@ export class BoardScene extends Phaser.Scene {
     this.cellLayer.setMask(this.boardMaskG.createGeometryMask());
     this.updateBoardMask();
 
+    // Title row: the original game's icon next to the game name, centered.
+    this.gameIcon = this.add
+      .image(0, SCORE_H * 0.3, TEX.gameIcon)
+      .setOrigin(0.5)
+      .setDisplaySize(SCORE_H * 0.42, SCORE_H * 0.42);
     this.titleText = this.add
-      .text(this.scale.width / 2, SCORE_H * 0.3, "NUMBER  MERGE", {
+      .text(0, SCORE_H * 0.3, "NUMBER  MERGE", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "20px",
         color: "#ffd166",
         fontStyle: "bold",
       })
-      .setOrigin(0.5);
+      .setOrigin(0, 0.5);
+    this.layoutTitleRow();
 
     this.scoreText = this.add
       .text(this.scale.width / 2, SCORE_H * 0.66, "0", {
@@ -172,10 +184,21 @@ export class BoardScene extends Phaser.Scene {
     );
   }
 
+  /** Center the game-icon + title name as one row on the title line. */
+  private layoutTitleRow(): void {
+    if (!this.gameIcon || !this.titleText) return;
+    const gap = 8;
+    const iconW = this.gameIcon.displayWidth;
+    const rowW = iconW + gap + this.titleText.width;
+    const left = (this.scale.width - rowW) / 2;
+    this.gameIcon.setX(left + iconW / 2);
+    this.titleText.setX(left + iconW + gap);
+  }
+
   private onResize(): void {
     this.computeLayout();
     this.updateBoardMask();
-    this.titleText?.setX(this.scale.width / 2);
+    this.layoutTitleRow();
     this.scoreText?.setX(this.scale.width / 2);
     this.muteButton?.setPosition(this.scale.width - 12, SCORE_H * 0.66);
     this.restartButton?.setPosition(12, SCORE_H * 0.66);
@@ -361,7 +384,7 @@ export class BoardScene extends Phaser.Scene {
     icon.setPosition(r + 2, 0);
 
     const label = this.add
-      .text(r * 2 + 8, 0, "New", {
+      .text(r * 2 + 8, 0, "New Game", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "16px",
         color: COLORS.text,

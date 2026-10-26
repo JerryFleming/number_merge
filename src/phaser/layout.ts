@@ -4,8 +4,9 @@ import { COLS, ROWS, type Pos } from "../core/types";
 export const GUTTER = 16;
 /** Height reserved at the bottom for the power-up bar. */
 export const POWER_BAR_H = 96;
-/** Space above the board for the score display. */
-export const SCORE_H = 72;
+/** Space above the board for the title + score display, with gaps around
+ * each (the board itself is vertically centered below this strip). */
+export const SCORE_H = 100;
 /**
  * Extra clearance always kept below the power bar, on top of any reported
  * safe-area inset. Mobile browsers' dynamic bottom URL bar is NOT reported by
@@ -56,16 +57,23 @@ export function cellSize(viewportW: number, viewportH: number): number {
   return Math.max(1, Math.floor(Math.min(byWidth, byHeight)));
 }
 
-/** Top-left pixel of cell (0,0): the grid is centered horizontally. */
+/** Top-left pixel of cell (0,0): the grid is centered horizontally, and
+ * vertically within the space between the score strip and the power bar. */
 export function gridOrigin(
   viewportW: number,
-  _viewportH: number,
+  viewportH: number,
   size: number,
 ): Point {
   const boardW = size * COLS;
+  const boardH = size * ROWS;
+  // The board's available vertical band: below the score strip, above the
+  // power bar (and its bottom clearance).
+  const top = SCORE_H;
+  const bottom = viewportH - POWER_BAR_H - bottomInset();
+  const y = top + Math.max(0, (bottom - top - boardH) / 2);
   return {
     x: Math.floor((viewportW - boardW) / 2),
-    y: SCORE_H,
+    y: Math.floor(y),
   };
 }
 

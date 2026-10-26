@@ -95,7 +95,7 @@ export class BoardScene extends Phaser.Scene {
     this.layoutTitleRow();
 
     this.scoreText = this.add
-      .text(this.scale.width / 2, SCORE_H * 0.66, "0", {
+      .text(this.scale.width / 2, SCORE_H * 0.80, "0", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "26px",
         color: COLORS.text,
@@ -110,7 +110,7 @@ export class BoardScene extends Phaser.Scene {
     // Both header buttons sit on the score's line: restart at the left edge,
     // mute at the right edge, balanced around the centered score.
     this.muteButton = this.add
-      .text(this.scale.width - 12, SCORE_H * 0.66, this.sfx.muted ? "🔇" : "🔊", {
+      .text(this.scale.width - 12, SCORE_H * 0.80, this.sfx.muted ? "🔇" : "🔊", {
         fontSize: "26px",
       })
       .setOrigin(1, 0.5)
@@ -147,7 +147,7 @@ export class BoardScene extends Phaser.Scene {
       });
       this.restart();
     });
-    this.restartButton.setPosition(12, SCORE_H * 0.66);
+    this.restartButton.setPosition(12, SCORE_H * 0.80);
 
     this.input.on("pointerdown", this.onPointerDown, this);
     this.input.on("pointermove", this.onPointerMove, this);
@@ -195,8 +195,8 @@ export class BoardScene extends Phaser.Scene {
     this.updateBoardMask();
     this.layoutTitleRow();
     this.scoreText?.setX(this.scale.width / 2);
-    this.muteButton?.setPosition(this.scale.width - 12, SCORE_H * 0.66);
-    this.restartButton?.setPosition(12, SCORE_H * 0.66);
+    this.muteButton?.setPosition(this.scale.width - 12, SCORE_H * 0.80);
+    this.restartButton?.setPosition(12, SCORE_H * 0.80);
     this.powerBar?.layout();
     this.gameOver?.layout();
     this.redraw();

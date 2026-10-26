@@ -11,6 +11,7 @@ import hammerUrl from "../assets/audio/hammer.ogg";
 import magnetUrl from "../assets/audio/magnet.ogg";
 import swapUrl from "../assets/audio/swap.ogg";
 import gameoverUrl from "../assets/audio/gameover.ogg";
+import newgameUrl from "../assets/audio/newgame.ogg";
 
 export const SFX_NAMES = [
   "select",
@@ -21,6 +22,7 @@ export const SFX_NAMES = [
   "magnet",
   "swap",
   "gameover",
+  "newgame",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];
@@ -35,6 +37,7 @@ export const AUDIO_ASSETS: ReadonlyArray<readonly [SfxName, string]> = [
   ["magnet", magnetUrl],
   ["swap", swapUrl],
   ["gameover", gameoverUrl],
+  ["newgame", newgameUrl],
 ];
 
 export interface Sfx {

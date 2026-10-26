@@ -916,6 +916,10 @@ export class BoardScene extends Phaser.Scene {
       this.redraw();
       return;
     }
+    // A soft downward swish as the whole board drops in (our addition — the
+    // original has no load sound). Won't play on first page load until a user
+    // gesture unlocks audio; audible on the New Game button.
+    this.sfx?.play("newgame");
     this.fallOffset = new Map(base);
     this.redraw();
     const progress = { t: 1 };

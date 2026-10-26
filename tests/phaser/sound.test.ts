@@ -12,6 +12,7 @@ describe("SFX_NAMES", () => {
       "magnet",
       "swap",
       "gameover",
+      "newgame",
     ];
     for (const e of expected) expect(SFX_NAMES).toContain(e);
   });

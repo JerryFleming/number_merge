@@ -19,9 +19,9 @@ export function tierColor(tier: Tier): number {
   return TIER_HUES[(tier - 1) % TIER_HUES.length];
 }
 
-/** One decimal, but with a trailing ".0" dropped (2K, not 2.0K). */
+/** Whole number only — no fractions (4K, not 4.1K). */
 function compact(n: number): string {
-  return n.toFixed(1).replace(/\.0$/, "");
+  return String(Math.round(n));
 }
 
 /** The number shown on a block: its value 2^tier (compact for large tiers). */

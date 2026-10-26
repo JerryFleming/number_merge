@@ -6,6 +6,12 @@ export const GUTTER = 16;
 export const POWER_BAR_H = 96;
 /** Space above the board for the score display. */
 export const SCORE_H = 72;
+/**
+ * Extra clearance always kept below the power bar, on top of any reported
+ * safe-area inset. Mobile browsers' dynamic bottom URL bar is NOT reported by
+ * `env(safe-area-inset-bottom)`, so without this the bar can sit under it.
+ */
+export const BOTTOM_MARGIN = 28;
 
 export interface Point {
   x: number;
@@ -32,13 +38,21 @@ export function safeBottom(): number {
 }
 
 /**
+ * Total bottom clearance to keep below the power bar: the reported safe-area
+ * inset plus a fixed margin for the mobile browser's dynamic URL bar.
+ */
+export function bottomInset(): number {
+  return safeBottom() + BOTTOM_MARGIN;
+}
+
+/**
  * The largest square cell size that fits COLS across (with side gutters) and
  * ROWS down (with the score strip and power bar reserved).
  */
 export function cellSize(viewportW: number, viewportH: number): number {
   const byWidth = (viewportW - GUTTER * 2) / COLS;
   const byHeight =
-    (viewportH - SCORE_H - POWER_BAR_H - GUTTER - safeBottom()) / ROWS;
+    (viewportH - SCORE_H - POWER_BAR_H - GUTTER - bottomInset()) / ROWS;
   return Math.max(1, Math.floor(Math.min(byWidth, byHeight)));
 }
 

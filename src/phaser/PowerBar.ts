@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { PowerUp } from "../core/game";
-import { POWER_BAR_H, safeBottom } from "./layout";
+import { POWER_BAR_H, bottomInset } from "./layout";
 
 interface Button {
   power: PowerUp;
@@ -186,8 +186,9 @@ export class PowerBar {
     // never let it exceed the space available across the row.
     const available = (w - pad * (n + 1)) / n;
     const bw = Math.min(bh, available);
-    // Lift the bar above the iOS home indicator / Safari bottom toolbar.
-    const y = h - POWER_BAR_H + pad - safeBottom();
+    // Lift the bar above the iOS home indicator and the mobile browser's
+    // bottom URL bar (safe-area inset + a fixed margin).
+    const y = h - POWER_BAR_H + pad - bottomInset();
     const groupW = bw * n + pad * (n - 1);
     const startX = (w - groupW) / 2;
     this.buttons.forEach((btn, i) => {

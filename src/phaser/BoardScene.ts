@@ -39,6 +39,7 @@ export class BoardScene extends Phaser.Scene {
   private sfx: Sfx = new WebAudioSfx();
   private muteButton!: Phaser.GameObjects.Text;
   private restartButton!: Phaser.GameObjects.Text;
+  private resumedOnLoad = false;
 
   /** Per-cell extra rows to offset UPWARD while the gravity drop plays.
    * Keyed "col,row" of the block's FINAL cell; 0 when settled. */
@@ -56,7 +57,8 @@ export class BoardScene extends Phaser.Scene {
 
   create(): void {
     this.model = new Game();
-    this.resumeIfSaved(); // auto-resume a saved board, if any
+    const resumed = this.resumeIfSaved(); // auto-resume a saved board, if any
+    this.resumedOnLoad = resumed;
     this.computeLayout();
 
     this.cameras.main.setBackgroundColor(COLORS.bg);
@@ -132,7 +134,9 @@ export class BoardScene extends Phaser.Scene {
     this.input.on("pointerup", this.onPointerUp, this);
     this.scale.on("resize", this.onResize, this);
 
-    this.redraw();
+    // Fresh game (no save resumed): drop the board in under gravity.
+    if (this.resumedOnLoad) this.redraw();
+    else this.animateNewGame();
   }
 
   private computeLayout(): void {
@@ -328,7 +332,7 @@ export class BoardScene extends Phaser.Scene {
     this.swapFirst = null;
     this.scoreText.setText("0");
     this.save(); // persist the fresh board so a reload resumes the new game
-    this.redraw();
+    this.animateNewGame(); // drop every block in under gravity
   }
 
   private checkGameOver(): void {
@@ -362,16 +366,18 @@ export class BoardScene extends Phaser.Scene {
 
   // --- persistence --------------------------------------------------------
 
-  /** Load a saved board and restore it, unless the save is absent/invalid. */
-  private resumeIfSaved(): void {
+  /** Load a saved board and restore it. Returns true if a save was resumed. */
+  private resumeIfSaved(): boolean {
     let json: string | null = null;
     try {
       json = localStorage.getItem(BoardScene.SAVE_KEY);
     } catch {
-      return;
+      return false;
     }
     const state = deserialize(json);
-    if (state) this.model.restore(state);
+    if (!state) return false;
+    this.model.restore(state);
+    return true;
   }
 
   /** Persist the current board, score, and progress. Called after any change. */
@@ -799,6 +805,46 @@ export class BoardScene extends Phaser.Scene {
       targets: progress,
       t: 0,
       duration: 180 + maxFall * 110,
+      ease: "Bounce.Out",
+      onUpdate: () => {
+        this.fallOffset = new Map(
+          [...base].map(([k, rows]) => [k, rows * progress.t]),
+        );
+        this.redraw();
+      },
+      onComplete: () => {
+        this.fallOffset.clear();
+        this.redraw();
+      },
+    });
+  }
+
+  /** New game: every block drops in from above under gravity, columns filling
+   * bottom-up with a slight per-column stagger. */
+  private animateNewGame(): void {
+    this.settleTween?.remove();
+    const base = new Map<string, number>();
+    let maxFall = 0;
+    for (let col = 0; col < COLS; col++) {
+      for (let row = 0; row < ROWS; row++) {
+        if (!this.model.grid[row][col]) continue;
+        // Deeper cells start higher (fill bottom-up); stagger columns slightly.
+        const fall = ROWS + 1 - row + col * 0.6;
+        base.set(`${col},${row}`, fall);
+        if (fall > maxFall) maxFall = fall;
+      }
+    }
+    if (maxFall === 0) {
+      this.redraw();
+      return;
+    }
+    this.fallOffset = new Map(base);
+    this.redraw();
+    const progress = { t: 1 };
+    this.settleTween = this.tweens.add({
+      targets: progress,
+      t: 0,
+      duration: 220 + maxFall * 90,
       ease: "Bounce.Out",
       onUpdate: () => {
         this.fallOffset = new Map(

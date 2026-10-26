@@ -38,7 +38,7 @@ export class BoardScene extends Phaser.Scene {
   private gameOver!: GameOverOverlay;
   private sfx: Sfx = new WebAudioSfx();
   private muteButton!: Phaser.GameObjects.Text;
-  private restartButton!: Phaser.GameObjects.Text;
+  private restartButton!: Phaser.GameObjects.Container;
   private resumedOnLoad = false;
 
   /** Per-cell extra rows to offset UPWARD while the gravity drop plays.
@@ -114,10 +114,15 @@ export class BoardScene extends Phaser.Scene {
       this.toggleMute();
     });
 
-    this.restartButton = this.add
-      .text(12, SCORE_H * 0.72, "🔄", { fontSize: "26px" })
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true })
+    // New-game button: a drawn circular-arrow (refresh) vector icon plus a
+    // "New" label, so it renders at a consistent size across devices (an emoji
+    // glyph does not). Origin is the container's own (0,0); laid out at x=12.
+    this.restartButton = this.makeNewGameButton();
+    this.restartButton
+      .setInteractive(
+        new Phaser.Geom.Rectangle(0, -SCORE_H * 0.32, 58, SCORE_H * 0.64),
+        Phaser.Geom.Rectangle.Contains,
+      )
       .setDepth(500);
     this.restartButton.on("pointerdown", (
       _p: Phaser.Input.Pointer,
@@ -126,8 +131,16 @@ export class BoardScene extends Phaser.Scene {
       e: Phaser.Types.Input.EventData,
     ) => {
       e.stopPropagation?.();
+      this.tweens.add({
+        targets: this.restartButton,
+        scale: 0.86,
+        duration: 80,
+        yoyo: true,
+        ease: "Quad.Out",
+      });
       this.restart();
     });
+    this.restartButton.setPosition(12, SCORE_H * 0.72);
 
     this.input.on("pointerdown", this.onPointerDown, this);
     this.input.on("pointermove", this.onPointerMove, this);
@@ -324,6 +337,36 @@ export class BoardScene extends Phaser.Scene {
       }
     }
     return out;
+  }
+
+  /** Build the new-game button: a drawn circular refresh arrow + "New" label,
+   * laid out horizontally with the container's left edge at x=0. */
+  private makeNewGameButton(): Phaser.GameObjects.Container {
+    const icon = this.add.graphics();
+    const r = 9;
+    // Circular arrow: an open-ended ring (gap at the top) with an arrowhead
+    // at the gap, reading as the familiar "refresh / new" glyph.
+    icon.lineStyle(3, 0xffd166, 1);
+    icon.beginPath();
+    icon.arc(0, 0, r, Phaser.Math.DegToRad(-60), Phaser.Math.DegToRad(210), false);
+    icon.strokePath();
+    // Arrowhead at the open end (top-right), pointing clockwise.
+    const ax = Math.cos(Phaser.Math.DegToRad(-60)) * r;
+    const ay = Math.sin(Phaser.Math.DegToRad(-60)) * r;
+    icon.fillStyle(0xffd166, 1);
+    icon.fillTriangle(ax + 4, ay - 1, ax - 3, ay - 4, ax - 1, ay + 4);
+    icon.setPosition(r + 2, 0);
+
+    const label = this.add
+      .text(r * 2 + 8, 0, "New", {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "16px",
+        color: COLORS.text,
+        fontStyle: "bold",
+      })
+      .setOrigin(0, 0.5);
+
+    return this.add.container(0, 0, [icon, label]);
   }
 
   private restart(): void {

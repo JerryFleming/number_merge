@@ -1,7 +1,6 @@
 import Phaser from "phaser";
 import type { PowerUp } from "../core/game";
 import { POWER_BAR_H, safeBottom } from "./layout";
-import { COLORS } from "./theme";
 
 interface Button {
   power: PowerUp;
@@ -10,18 +9,16 @@ interface Button {
   glow: Phaser.GameObjects.Graphics;
   body: Phaser.GameObjects.Graphics;
   icon: Phaser.GameObjects.Graphics;
-  text: Phaser.GameObjects.Text;
   /** Usage count shown in the top-right corner. */
   count: Phaser.GameObjects.Text;
   bw: number;
   bh: number;
-  idle?: Phaser.Tweens.Tween;
   glowTween?: Phaser.Tweens.Tween;
 }
 
-/** Bottom bar with three power-up buttons; tap toggles targeting mode.
- * Animates like the original: an idle breathing pulse, a press bounce, and a
- * pulsing glow while a power-up is armed. */
+/** Bottom bar with three icon-only power-up buttons; tap toggles targeting
+ * mode. Reacts to touch only: a press bounce on tap and a pulsing glow while a
+ * power-up is armed (no idle animation when untouched). */
 export class PowerBar {
   private buttons: Button[] = [];
   private active: PowerUp | null = null;
@@ -30,26 +27,18 @@ export class PowerBar {
     private scene: Phaser.Scene,
     private onSelect: (power: PowerUp) => void,
   ) {
-    const defs: Array<{ power: PowerUp; label: string }> = [
-      { power: "hammer", label: "Hammer" },
-      { power: "magnet", label: "Magnet" },
-      { power: "swap", label: "Swap" },
+    const defs: Array<{ power: PowerUp }> = [
+      { power: "hammer" },
+      { power: "magnet" },
+      { power: "swap" },
     ];
-    defs.forEach((d, i) => {
+    defs.forEach((d) => {
       const glow = scene.add.graphics();
       const body = scene.add.graphics();
       // Vector icon drawn with Graphics so all three share an identical visual
       // size (emoji rendered at inconsistent sizes across fonts).
       const icon = scene.add.graphics();
-      this.drawIcon(icon, d.power, 30);
-      const text = scene.add
-        .text(0, 0, d.label, {
-          fontFamily: "system-ui, sans-serif",
-          fontSize: "14px",
-          color: COLORS.text,
-          fontStyle: "bold",
-        })
-        .setOrigin(0.5);
+      this.drawIcon(icon, d.power, 34);
       // Usage count in the top-right corner; hidden until first used.
       const count = scene.add
         .text(0, 0, "0", {
@@ -62,8 +51,8 @@ export class PowerBar {
         })
         .setOrigin(1, 0)
         .setVisible(false);
-      const root = scene.add.container(0, 0, [glow, body, icon, text, count]);
-      const btn: Button = { power: d.power, root, glow, body, icon, text, count, bw: 10, bh: 10 };
+      const root = scene.add.container(0, 0, [glow, body, icon, count]);
+      const btn: Button = { power: d.power, root, glow, body, icon, count, bw: 10, bh: 10 };
 
       root.setInteractive(
         new Phaser.Geom.Rectangle(-5, -5, 10, 10),
@@ -81,8 +70,6 @@ export class PowerBar {
       });
 
       this.buttons.push(btn);
-      // Stagger the idle breathing so the three buttons don't pulse in unison.
-      this.startIdle(btn, i * 220);
     });
     this.layout();
   }
@@ -160,21 +147,6 @@ export class PowerBar {
 
   // --- animations ---------------------------------------------------------
 
-  /** Gentle continuous scale "breathing", like the original's ButtonScaleUp. */
-  private startIdle(btn: Button, delay: number): void {
-    btn.idle?.remove();
-    btn.root.setScale(1);
-    btn.idle = this.scene.tweens.add({
-      targets: btn.root,
-      scale: 1.05,
-      duration: 900,
-      delay,
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.InOut",
-    });
-  }
-
   /** Quick press bounce on tap. */
   private press(btn: Button): void {
     this.scene.tweens.add({
@@ -223,9 +195,8 @@ export class PowerBar {
       btn.bw = bw;
       btn.bh = bh;
       btn.root.setPosition(cx, cy);
-      // Icon in the upper portion, label beneath it (both centered in x).
-      btn.icon.setPosition(0, -bh * 0.16);
-      btn.text.setPosition(0, bh * 0.28);
+      // Icon centered in the button (labels removed; icons only).
+      btn.icon.setPosition(0, 0);
       // Count badge pinned to the top-right inner corner of the body.
       btn.count.setPosition(bw / 2 - 5, -bh / 2 + 4);
       (btn.root.input!.hitArea as Phaser.Geom.Rectangle).setTo(
@@ -246,7 +217,6 @@ export class PowerBar {
       btn.body.clear();
       btn.body.fillStyle(on ? 0xffd166 : 0x242b3d, 1);
       btn.body.fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
-      btn.text.setColor(on ? "#10131a" : COLORS.text);
       // Glow halo behind the body (shown only while armed, via tween alpha).
       btn.glow.clear();
       btn.glow.fillStyle(0xffd166, 1);

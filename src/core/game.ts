@@ -27,6 +27,7 @@ export class Game {
   private _reachedTier: Tier = 1;
   private _over = false;
   private _targeting: PowerUp | null = null;
+  private _useCounts: Record<PowerUp, number> = { hammer: 0, magnet: 0, swap: 0 };
   private _lastSettle = new Map<Cell, number>();
   private readonly rng: () => number;
 
@@ -56,6 +57,10 @@ export class Game {
   get targeting(): PowerUp | null {
     return this._targeting;
   }
+  /** How many times each power-up has been applied this game. */
+  get useCounts(): Readonly<Record<PowerUp, number>> {
+    return this._useCounts;
+  }
   /** How many rows each current block fell in the most recent settle (by block
    * identity). Used by the view to animate gravity; empty after restore/new. */
   get lastSettle(): ReadonlyMap<Cell, number> {
@@ -69,6 +74,7 @@ export class Game {
     this._score = 0n;
     this._reachedTier = 1;
     this._targeting = null;
+    this._useCounts = { hammer: 0, magnet: 0, swap: 0 };
     this._lastSettle = new Map();
     this.recomputeOver();
   }
@@ -81,10 +87,18 @@ export class Game {
   }
 
   /** Restore a saved board + score + progress. Transient state is reset. */
-  restore(state: { grid: Grid; score: bigint; reachedTier: Tier }): void {
+  restore(state: {
+    grid: Grid;
+    score: bigint;
+    reachedTier: Tier;
+    useCounts?: Record<PowerUp, number>;
+  }): void {
     this._grid = state.grid.map((r) => r.slice());
     this._score = state.score;
     this._reachedTier = state.reachedTier;
+    this._useCounts = state.useCounts
+      ? { ...state.useCounts }
+      : { hammer: 0, magnet: 0, swap: 0 };
     this._path = [];
     this._targeting = null;
     this._lastSettle = new Map();
@@ -136,6 +150,7 @@ export class Game {
     this._grid = hammer(this._grid, target);
     this.settleBoard();
     this._targeting = null;
+    this._useCounts.hammer++;
     return true;
   }
 
@@ -147,6 +162,7 @@ export class Game {
     this._grid = out;
     this.settleBoard();
     this._targeting = null;
+    this._useCounts.magnet++;
     return true;
   }
 
@@ -155,6 +171,7 @@ export class Game {
     this._lastSettle = new Map();
     this._grid = swap(this._grid, a, b);
     this._targeting = null;
+    this._useCounts.swap++;
     this.recomputeOver();
     return true;
   }

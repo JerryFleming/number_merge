@@ -144,3 +144,42 @@ describe("Game power-up targeting vs drag", () => {
     expect(game.targeting).toBeNull(); // targeting ends after use
   });
 });
+
+describe("Game power-up use counts", () => {
+  it("starts every power-up at zero uses", () => {
+    const game = new Game({ rng: fixedRng(0), initialGrid: gridOf(5, {}) });
+    expect(game.useCounts).toEqual({ hammer: 0, magnet: 0, swap: 0 });
+  });
+
+  it("increments the count each time a power-up is applied", () => {
+    const game = new Game({
+      rng: fixedRng(0),
+      initialGrid: gridOf(5, { "2,2": 7, "0,0": 3, "4,4": 3 }),
+    });
+    game.useHammer(P(2, 2));
+    game.useHammer(P(0, 1));
+    game.useSwap(P(1, 1), P(3, 3));
+    expect(game.useCounts).toEqual({ hammer: 2, magnet: 0, swap: 1 });
+  });
+
+  it("does not count a magnet that is rejected (singleton tier)", () => {
+    // Only one block of tier 9 exists, so magnet is not usable there.
+    const game = new Game({
+      rng: fixedRng(0),
+      initialGrid: gridOf(5, { "2,2": 9 }),
+    });
+    const changed = game.useMagnet(P(2, 2));
+    expect(changed).toBe(false);
+    expect(game.useCounts.magnet).toBe(0);
+  });
+
+  it("resets counts on a new game", () => {
+    const game = new Game({
+      rng: fixedRng(0),
+      initialGrid: gridOf(5, { "2,2": 7 }),
+    });
+    game.useHammer(P(2, 2));
+    game.startNew();
+    expect(game.useCounts).toEqual({ hammer: 0, magnet: 0, swap: 0 });
+  });
+});

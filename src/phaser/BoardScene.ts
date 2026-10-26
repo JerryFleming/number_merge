@@ -147,6 +147,8 @@ export class BoardScene extends Phaser.Scene {
     this.input.on("pointerup", this.onPointerUp, this);
     this.scale.on("resize", this.onResize, this);
 
+    this.powerBar.setCounts(this.model.useCounts); // show resumed counts, if any
+
     // Fresh game (no save resumed): drop the board in under gravity.
     if (this.resumedOnLoad) this.redraw();
     else this.animateNewGame();
@@ -323,6 +325,7 @@ export class BoardScene extends Phaser.Scene {
   /** Shared post-power-up bookkeeping. */
   private finishPowerUp(): void {
     this.scoreText.setText(this.model.score.toString());
+    this.powerBar.setCounts(this.model.useCounts);
     this.save();
     this.checkGameOver();
   }
@@ -374,6 +377,7 @@ export class BoardScene extends Phaser.Scene {
     this.gameOver.hide();
     this.swapFirst = null;
     this.scoreText.setText("0");
+    this.powerBar.setCounts(this.model.useCounts); // reset badges to 0
     this.save(); // persist the fresh board so a reload resumes the new game
     this.animateNewGame(); // drop every block in under gravity
   }
@@ -432,6 +436,7 @@ export class BoardScene extends Phaser.Scene {
           grid: this.model.grid,
           score: this.model.score,
           reachedTier: this.model.reachedTier,
+          useCounts: this.model.useCounts,
         }),
       );
     } catch {

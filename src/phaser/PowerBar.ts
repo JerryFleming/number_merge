@@ -11,6 +11,8 @@ interface Button {
   body: Phaser.GameObjects.Graphics;
   icon: Phaser.GameObjects.Graphics;
   text: Phaser.GameObjects.Text;
+  /** Usage count shown in the top-right corner. */
+  count: Phaser.GameObjects.Text;
   bw: number;
   bh: number;
   idle?: Phaser.Tweens.Tween;
@@ -48,8 +50,20 @@ export class PowerBar {
           fontStyle: "bold",
         })
         .setOrigin(0.5);
-      const root = scene.add.container(0, 0, [glow, body, icon, text]);
-      const btn: Button = { power: d.power, root, glow, body, icon, text, bw: 10, bh: 10 };
+      // Usage count in the top-right corner; hidden until first used.
+      const count = scene.add
+        .text(0, 0, "0", {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: "12px",
+          color: "#10131a",
+          fontStyle: "bold",
+          backgroundColor: "#ffd166",
+          padding: { x: 5, y: 1 },
+        })
+        .setOrigin(1, 0)
+        .setVisible(false);
+      const root = scene.add.container(0, 0, [glow, body, icon, text, count]);
+      const btn: Button = { power: d.power, root, glow, body, icon, text, count, bw: 10, bh: 10 };
 
       root.setInteractive(
         new Phaser.Geom.Rectangle(-5, -5, 10, 10),
@@ -82,6 +96,15 @@ export class PowerBar {
   clearActive(): void {
     this.active = null;
     this.render();
+  }
+
+  /** Update the top-right usage badges; hidden while a power-up is unused. */
+  setCounts(counts: Readonly<Record<PowerUp, number>>): void {
+    this.buttons.forEach((btn) => {
+      const n = counts[btn.power] ?? 0;
+      btn.count.setText(String(n));
+      btn.count.setVisible(n > 0);
+    });
   }
 
   /** Draw a power-up icon with Graphics, centered on (0,0), fitting a sz box. */
@@ -203,6 +226,8 @@ export class PowerBar {
       // Icon in the upper portion, label beneath it (both centered in x).
       btn.icon.setPosition(0, -bh * 0.16);
       btn.text.setPosition(0, bh * 0.28);
+      // Count badge pinned to the top-right inner corner of the body.
+      btn.count.setPosition(bw / 2 - 5, -bh / 2 + 4);
       (btn.root.input!.hitArea as Phaser.Geom.Rectangle).setTo(
         -bw / 2,
         -bh / 2,

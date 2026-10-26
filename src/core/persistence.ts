@@ -3,12 +3,21 @@ import { COLS, ROWS, type Grid, type Tier } from "./types";
 /** Bump when the save shape changes incompatibly; old saves are then discarded. */
 export const SAVE_VERSION = 1;
 
-/** The persistent part of a game: board + score + progress. Transient drag
- * and targeting state are deliberately not saved. */
+type PowerUpKey = "hammer" | "magnet" | "swap";
+type UseCounts = Record<PowerUpKey, number>;
+
+function zeroCounts(): UseCounts {
+  return { hammer: 0, magnet: 0, swap: 0 };
+}
+
+/** The persistent part of a game: board + score + progress + power-up use
+ * counts. Transient drag and targeting state are deliberately not saved. */
 export interface SaveState {
   grid: Grid;
   score: bigint;
   reachedTier: Tier;
+  /** Optional on input (older callers/saves omit it); always set on read. */
+  useCounts?: UseCounts;
 }
 
 interface SaveEnvelope {
@@ -16,6 +25,7 @@ interface SaveEnvelope {
   grid: (Tier | null)[][];
   score: string; // bigint as a decimal string
   reachedTier: number;
+  useCounts?: UseCounts; // added after v1; absent in older saves
 }
 
 export function serialize(state: SaveState): string {
@@ -24,6 +34,7 @@ export function serialize(state: SaveState): string {
     grid: state.grid.map((row) => row.map((c) => (c ? c.tier : null))),
     score: state.score.toString(),
     reachedTier: state.reachedTier,
+    useCounts: state.useCounts ?? zeroCounts(),
   };
   return JSON.stringify(envelope);
 }
@@ -52,7 +63,19 @@ export function deserialize(json: string | null): SaveState | null {
   const grid: Grid = raw.grid.map((row) =>
     row.map((t) => (t === null ? null : { tier: t })),
   );
-  return { grid, score, reachedTier: raw.reachedTier };
+  return { grid, score, reachedTier: raw.reachedTier, useCounts: readCounts(raw.useCounts) };
+}
+
+/** Coerce a saved useCounts (possibly absent or partial) to a full count map. */
+function readCounts(raw: unknown): UseCounts {
+  const out = zeroCounts();
+  if (raw && typeof raw === "object") {
+    for (const k of ["hammer", "magnet", "swap"] as PowerUpKey[]) {
+      const v = (raw as Record<string, unknown>)[k];
+      if (typeof v === "number" && Number.isFinite(v) && v >= 0) out[k] = v;
+    }
+  }
+  return out;
 }
 
 function isEnvelope(x: unknown): x is SaveEnvelope {

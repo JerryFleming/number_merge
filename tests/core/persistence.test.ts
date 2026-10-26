@@ -55,6 +55,24 @@ describe("serialize / deserialize round-trip", () => {
     const json = serialize({ grid: game.grid, score: big, reachedTier: 7 });
     expect(deserialize(json)!.score).toBe(big);
   });
+
+  it("round-trips power-up use counts", () => {
+    const game = new Game({ initialGrid: gridOf(2, { "0,0": 8, "0,1": 8 }) });
+    game.useHammer(P(4, 4));
+    game.useHammer(P(3, 3));
+    const state = deserialize(serialize(game))!;
+    expect(state.useCounts).toEqual({ hammer: 2, magnet: 0, swap: 0 });
+  });
+
+  it("defaults use counts to zero when a save omits them", () => {
+    const envelope = JSON.parse(
+      serialize({ grid: gridOf(1, {}), score: 0n, reachedTier: 1 }),
+    );
+    delete envelope.useCounts; // an older save predating the feature
+    const state = deserialize(JSON.stringify(envelope))!;
+    expect(state).not.toBeNull();
+    expect(state.useCounts).toEqual({ hammer: 0, magnet: 0, swap: 0 });
+  });
 });
 
 describe("Game.restore", () => {

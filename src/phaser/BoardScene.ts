@@ -11,7 +11,7 @@ import {
   SCORE_H,
   type Point,
 } from "./layout";
-import { COLORS, tierColor, tierLabel } from "./theme";
+import { COLORS, tierColor, tierLabel, tierTextColor } from "./theme";
 import { PowerBar } from "./PowerBar";
 import { GameOverOverlay } from "./GameOver";
 import { PhaserSfx, AUDIO_ASSETS, type Sfx } from "./sound";
@@ -538,7 +538,7 @@ export class BoardScene extends Phaser.Scene {
             .text(center.x, center.y, tierLabel(c.tier), {
               fontFamily: "system-ui, sans-serif",
               fontSize: `${Math.floor(this.size * 0.34)}px`,
-              color: COLORS.text,
+              color: tierTextColor(c.tier),
               fontStyle: "bold",
             })
             .setOrigin(0.5);

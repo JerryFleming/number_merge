@@ -180,11 +180,12 @@ export class PowerBar {
     const w = this.scene.scale.width;
     const h = this.scene.scale.height;
     const n = this.buttons.length;
-    const pad = 12;
-    const maxBtnW = 140;
-    const available = (w - pad * (n + 1)) / n;
-    const bw = Math.min(maxBtnW, available);
+    const pad = 20; // gap between the round buttons
     const bh = POWER_BAR_H - pad * 2;
+    // Round buttons: width tracks height so each column is the circle's box;
+    // never let it exceed the space available across the row.
+    const available = (w - pad * (n + 1)) / n;
+    const bw = Math.min(bh, available);
     // Lift the bar above the iOS home indicator / Safari bottom toolbar.
     const y = h - POWER_BAR_H + pad - safeBottom();
     const groupW = bw * n + pad * (n - 1);
@@ -197,13 +198,15 @@ export class PowerBar {
       btn.root.setPosition(cx, cy);
       // Icon centered in the button (labels removed; icons only).
       btn.icon.setPosition(0, 0);
-      // Count badge pinned to the top-right inner corner of the body.
-      btn.count.setPosition(bw / 2 - 5, -bh / 2 + 4);
+      // Count badge on the top-right of the round body (≈45° on the circle).
+      const rr = Math.min(bw, bh) / 2;
+      btn.count.setPosition(rr * 0.72, -rr * 0.72);
+      // Hit area = the circle's bounding square, so taps match the visible body.
       (btn.root.input!.hitArea as Phaser.Geom.Rectangle).setTo(
-        -bw / 2,
-        -bh / 2,
-        bw,
-        bh,
+        -rr,
+        -rr,
+        rr * 2,
+        rr * 2,
       );
     });
     this.render();
@@ -213,14 +216,16 @@ export class PowerBar {
     this.buttons.forEach((btn) => {
       const on = this.active === btn.power;
       const { bw, bh } = btn;
-      // Body (drawn centered on the container origin).
+      // Round body: a circle sized to the button's shorter dimension, centered
+      // on the container origin.
+      const r = Math.min(bw, bh) / 2;
       btn.body.clear();
       btn.body.fillStyle(on ? 0xffd166 : 0x242b3d, 1);
-      btn.body.fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 12);
+      btn.body.fillCircle(0, 0, r);
       // Glow halo behind the body (shown only while armed, via tween alpha).
       btn.glow.clear();
       btn.glow.fillStyle(0xffd166, 1);
-      btn.glow.fillRoundedRect(-bw / 2 - 8, -bh / 2 - 8, bw + 16, bh + 16, 16);
+      btn.glow.fillCircle(0, 0, r + 8);
       this.setArmedGlow(btn, on);
     });
   }

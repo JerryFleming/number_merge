@@ -7,12 +7,18 @@ export interface TierRange {
 
 /**
  * Spawn-tier range as a function of the highest tier reached so far.
- * Monotonic non-decreasing; min >= 1. Simple builder-default rule: the window
- * is 4 tiers wide and its floor rises by 1 every 2 tiers reached beyond 3.
+ * Matches the original game's default formula, recovered from the native
+ * binary (NumberMatchGameplayUtilController.GetMin/MaxSpawnTierFromReachedTier,
+ * RVA 0x36F0694 / 0x36F0A00 — see docs/reverse-engineering/spawn-tier-formula.md):
+ *
+ *   reach <  16 -> fixed 1..6
+ *   reach >= 16 -> [reach-13, reach-8]  (a 6-tier window sliding up)
+ *
+ * Monotonic non-decreasing; min >= 1.
  */
 export function spawnRange(reachedTier: Tier): TierRange {
-  const min = 1 + Math.floor(Math.max(0, reachedTier - 3) / 2);
-  return { min, max: min + 3 };
+  if (reachedTier < 16) return { min: 1, max: 6 };
+  return { min: reachedTier - 13, max: reachedTier - 8 };
 }
 
 /** A uniformly-random tier within the (inclusive) range. */

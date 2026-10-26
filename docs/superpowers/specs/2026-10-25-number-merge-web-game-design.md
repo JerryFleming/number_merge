@@ -215,8 +215,13 @@ These are requirements, not polish-if-time:
 - **Adjacency 4-way vs 8-way.** Default **8-way** (orthogonal + diagonal). If
   quick inspection of the original's grid neighbor logic shows 4-way, use
   that instead. Does not change the data model.
-- **Spawn-tier scaling formula.** A simple monotonic rule tied to the highest
-  tier reached (e.g. min/max spawn tier each rise by 1 per N tiers reached).
+- **Spawn-tier scaling formula.** ~~Builder's call.~~ **Resolved:** recovered
+  the original's default formula from the native binary and matched it — fixed
+  spawn range 1..6 until the player reaches tier 16, then a 6-tier window that
+  slides up as `[reach-13, reach-8]`. See
+  `docs/reverse-engineering/spawn-tier-formula.md`. (The original also ships
+  A/B-test config variants with slightly different offsets; we use the
+  baseline.)
 - **Combo-feedback thresholds** (chain length → feedback intensity) and exact
   tween timings/easings — tuned for feel.
 - **Score type/display** (BigInt vs capped) as above.

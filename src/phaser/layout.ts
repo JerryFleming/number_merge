@@ -13,12 +13,32 @@ export interface Point {
 }
 
 /**
+ * Bottom safe-area inset in CSS pixels (iOS home indicator / Safari toolbar).
+ * Read from a probe element using `env(safe-area-inset-bottom)`; 0 where the
+ * browser doesn't expose it or in a non-DOM context.
+ */
+export function safeBottom(): number {
+  try {
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:fixed;bottom:0;height:env(safe-area-inset-bottom,0px);visibility:hidden;pointer-events:none;";
+    document.body.appendChild(probe);
+    const h = probe.getBoundingClientRect().height;
+    probe.remove();
+    return Number.isFinite(h) ? h : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * The largest square cell size that fits COLS across (with side gutters) and
  * ROWS down (with the score strip and power bar reserved).
  */
 export function cellSize(viewportW: number, viewportH: number): number {
   const byWidth = (viewportW - GUTTER * 2) / COLS;
-  const byHeight = (viewportH - SCORE_H - POWER_BAR_H - GUTTER) / ROWS;
+  const byHeight =
+    (viewportH - SCORE_H - POWER_BAR_H - GUTTER - safeBottom()) / ROWS;
   return Math.max(1, Math.floor(Math.min(byWidth, byHeight)));
 }
 

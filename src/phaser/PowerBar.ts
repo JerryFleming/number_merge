@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { PowerUp } from "../core/game";
-import { POWER_BAR_H } from "./layout";
+import { POWER_BAR_H, safeBottom } from "./layout";
 import { COLORS } from "./theme";
 
 interface Button {
@@ -190,7 +190,8 @@ export class PowerBar {
     const available = (w - pad * (n + 1)) / n;
     const bw = Math.min(maxBtnW, available);
     const bh = POWER_BAR_H - pad * 2;
-    const y = h - POWER_BAR_H + pad;
+    // Lift the bar above the iOS home indicator / Safari bottom toolbar.
+    const y = h - POWER_BAR_H + pad - safeBottom();
     const groupW = bw * n + pad * (n - 1);
     const startX = (w - groupW) / 2;
     this.buttons.forEach((btn, i) => {

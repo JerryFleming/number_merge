@@ -130,12 +130,7 @@ export class BoardScene extends Phaser.Scene {
     // "New" label, so it renders at a consistent size across devices (an emoji
     // glyph does not). Origin is the container's own (0,0); laid out at x=12.
     this.restartButton = this.makeNewGameButton();
-    this.restartButton
-      .setInteractive(
-        new Phaser.Geom.Rectangle(0, -SCORE_H * 0.32, 58, SCORE_H * 0.64),
-        Phaser.Geom.Rectangle.Contains,
-      )
-      .setDepth(500);
+    this.restartButton.setDepth(500); // hit area is set inside makeNewGameButton
     this.restartButton.on("pointerdown", (
       _p: Phaser.Input.Pointer,
       _x: number,
@@ -365,8 +360,10 @@ export class BoardScene extends Phaser.Scene {
     return out;
   }
 
-  /** Build the new-game button: a drawn circular refresh arrow + "New" label,
-   * laid out horizontally with the container's left edge at x=0. */
+  /** Build the new-game button: a drawn circular refresh arrow + label,
+   * laid out horizontally with the container's left edge at x=0. The hit area
+   * is sized to the actual content so the whole label (not just part of it) is
+   * tappable. */
   private makeNewGameButton(): Phaser.GameObjects.Container {
     const icon = this.add.graphics();
     const r = 9;
@@ -383,8 +380,9 @@ export class BoardScene extends Phaser.Scene {
     icon.fillTriangle(ax + 4, ay - 1, ax - 3, ay - 4, ax - 1, ay + 4);
     icon.setPosition(r + 2, 0);
 
+    const labelX = r * 2 + 8;
     const label = this.add
-      .text(r * 2 + 8, 0, "New Game", {
+      .text(labelX, 0, "New Game", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "16px",
         color: COLORS.text,
@@ -392,7 +390,14 @@ export class BoardScene extends Phaser.Scene {
       })
       .setOrigin(0, 0.5);
 
-    return this.add.container(0, 0, [icon, label]);
+    const container = this.add.container(0, 0, [icon, label]);
+    // Hit area spans the icon through the end of the label, full header height.
+    const width = labelX + label.width;
+    container.setInteractive(
+      new Phaser.Geom.Rectangle(-4, -SCORE_H * 0.33, width + 8, SCORE_H * 0.66),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    return container;
   }
 
   private restart(): void {

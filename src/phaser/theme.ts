@@ -19,11 +19,16 @@ export function tierColor(tier: Tier): number {
   return TIER_HUES[(tier - 1) % TIER_HUES.length];
 }
 
+/** One decimal, but with a trailing ".0" dropped (2K, not 2.0K). */
+function compact(n: number): string {
+  return n.toFixed(1).replace(/\.0$/, "");
+}
+
 /** The number shown on a block: its value 2^tier (compact for large tiers). */
 export function tierLabel(tier: Tier): string {
   const v = tierValue(tier);
   if (v < 1000) return String(v);
-  if (v < 1_000_000) return (v / 1000).toFixed(v % 1000 ? 1 : 0) + "K";
-  if (v < 1_000_000_000) return (v / 1_000_000).toFixed(1) + "M";
-  return (v / 1_000_000_000).toFixed(1) + "B";
+  if (v < 1_000_000) return compact(v / 1000) + "K";
+  if (v < 1_000_000_000) return compact(v / 1_000_000) + "M";
+  return compact(v / 1_000_000_000) + "B";
 }

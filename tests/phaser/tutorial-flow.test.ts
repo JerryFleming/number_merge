@@ -43,8 +43,8 @@ function stubScene() {
     make,
     scale: { width: 400, height: 800 },
     tweens: {
-      add: () => ({ remove: () => {} }),
-      chain: () => ({ remove: () => {} }),
+      add: () => ({ stop: () => {}, remove: () => {} }),
+      chain: () => ({ stop: () => {}, remove: () => {} }),
     },
   } as unknown as Phaser.Scene;
 }

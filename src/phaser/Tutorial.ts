@@ -251,7 +251,9 @@ export class Tutorial {
   /** Loop the pointing hand: for a drag step, run it along the demo cells; for
    * the power-up step, bob it at the bottom pointing down toward the bar. */
   private startHand(step: TutorialStep): void {
-    this.handTween?.remove();
+    // stop(), not remove(): TweenChain.remove() removes a CHILD tween (and
+    // throws when passed nothing), whereas stop() halts the whole tween/chain.
+    this.handTween?.stop();
     this.hand.setDisplaySize(this.size * 0.78, this.size * 0.78 * (250 / 171));
     this.hand.setAngle(0).setAlpha(1);
 
@@ -316,7 +318,7 @@ export class Tutorial {
   private finish(): void {
     if (!this.active) return; // guard against a double tap (down + up)
     this.active = false;
-    this.handTween?.remove();
+    this.handTween?.stop(); // stop(), not remove() — see startHand()
     this.container.setVisible(false);
     this.skip.setVisible(false);
     this.dim.clear();

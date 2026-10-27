@@ -553,7 +553,10 @@ export class BoardScene extends Phaser.Scene {
     this.lineGfx.clear();
     const path = this.model.path;
     if (path.length < 2) return;
-    this.lineGfx.lineStyle(Math.max(6, this.size * 0.12), COLORS.line, 0.9);
+    // Tint the connector with the color of the first-selected box (chain head).
+    const head = cellAt(this.model.grid, path[0]);
+    const lineColor = head ? tierColor(head.tier) : COLORS.line;
+    this.lineGfx.lineStyle(Math.max(6, this.size * 0.12), lineColor, 0.9);
     // Straight center-to-center polyline. It renders behind the boxes (see
     // create()), so the boxes mask the parts that cross them and only the
     // connectors between cells show.

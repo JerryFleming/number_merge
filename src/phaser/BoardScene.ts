@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { Game, type PowerUp } from "../core/game";
 import { cellAt } from "../core/board";
 import { magnetUsable } from "../core/powerups";
-import { COLS, ROWS, type Grid, type Pos } from "../core/types";
+import { COLS, ROWS, type Cell, type Grid, type Pos } from "../core/types";
 import {
   cellCenter,
   cellSize,
@@ -53,8 +53,14 @@ export class BoardScene extends Phaser.Scene {
   private settleTween?: Phaser.Tweens.Tween;
 
   /** The highest tier that currently wears the crown. When a merge pushes the
-   * reached tier above this, the next redraw pops the crown in (new record). */
+   * reached tier above this, the merge that did it hands the crown to its
+   * result block. */
   private crownedTier = 0;
+  /** The single block object that currently wears the crown (the one that set
+   * the highest tier reached). Tracked by identity so the crown follows it
+   * through gravity, and only ever one block is crowned — like the original,
+   * which crowns only the block whose merge set a new record. */
+  private crownedBlock: Cell | null = null;
   /** Set for one redraw when a new record is set, so the crown on the fresh
    * record block plays its scale-up overshoot instead of appearing instantly. */
   private crownPop = false;
@@ -208,8 +214,10 @@ export class BoardScene extends Phaser.Scene {
 
     this.powerBar.setCounts(this.model.useCounts); // show resumed counts, if any
 
-    // A resumed game already holds its record tier: crown it quietly (no pop).
+    // A resumed game already holds its record tier: crown one block at that
+    // tier quietly (no pop). A fresh game has reachedTier 1 → no crown.
     this.crownedTier = this.model.reachedTier;
+    this.syncCrownedBlock();
 
     if (this.resumedOnLoad) {
       // A resumed game: a returning player, so never the tutorial.
@@ -496,6 +504,7 @@ export class BoardScene extends Phaser.Scene {
   private restart(): void {
     this.model.startNew();
     this.crownedTier = this.model.reachedTier; // reset: no crown until re-earned
+    this.syncCrownedBlock();
     this.gameOver.hide();
     this.swapFirst = null;
     this.scoreText.setText("0");
@@ -601,6 +610,7 @@ export class BoardScene extends Phaser.Scene {
   private onTutorialStep(step: TutorialStep): void {
     this.model.loadGrid(step.grid);
     this.crownedTier = this.model.reachedTier;
+    this.crownedBlock = null; // no crown on the scripted demo board
     this.redraw();
   }
 
@@ -614,6 +624,7 @@ export class BoardScene extends Phaser.Scene {
       // Manual replay from the help button: put the player's game back.
       this.model.restore(snap);
       this.crownedTier = this.model.reachedTier;
+      this.syncCrownedBlock();
       this.scoreText.setText(this.model.score.toString());
       this.powerBar.setCounts(this.model.useCounts);
       this.save();
@@ -624,6 +635,7 @@ export class BoardScene extends Phaser.Scene {
     // First run: start a real game and drop it in under gravity.
     this.model.startNew();
     this.crownedTier = this.model.reachedTier;
+    this.crownedBlock = null;
     this.scoreText.setText("0");
     this.powerBar.setCounts(this.model.useCounts);
     this.save();
@@ -733,21 +745,37 @@ export class BoardScene extends Phaser.Scene {
             .setOrigin(0.5);
           this.cellLayer.add(label);
 
-          // Crown the block(s) at the highest tier reached so far (the
-          // original's "block-add-crown-icon"). It lives inside cellLayer, so it
-          // rides the same fall offset and tracks the block through gravity.
-          // Suppressed during the tutorial so the scripted demo stays clean.
-          if (
-            !this.tutorial?.isActive &&
-            c.tier === this.model.reachedTier &&
-            c.tier > 1
-          ) {
+          // Crown exactly the one block that set the highest tier reached (the
+          // original's "block-add-crown-icon"). Tracked by object identity, so
+          // it rides the same fall offset and follows that block through
+          // gravity. Suppressed during the tutorial.
+          if (!this.tutorial?.isActive && c === this.crownedBlock) {
             this.addCrown(center.x, center.y - s / 2, s);
           }
         }
       }
     }
     this.drawPathLine();
+  }
+
+  /** Re-establish which block wears the crown after a board is loaded without a
+   * record-setting merge (resume / restore). We don't persist the exact record
+   * block, so crown one block currently at the reached tier, if the tier is
+   * above the base; otherwise clear it. `startNew` passes reachedTier 1, which
+   * clears it. */
+  private syncCrownedBlock(): void {
+    this.crownedBlock = null;
+    const tier = this.model.reachedTier;
+    if (tier <= 1) return;
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const c = this.model.grid[row][col];
+        if (c && c.tier === tier) {
+          this.crownedBlock = c;
+          return;
+        }
+      }
+    }
   }
 
   /** Draw the crown sprite straddling the top edge of a block centered at
@@ -1056,8 +1084,10 @@ export class BoardScene extends Phaser.Scene {
 
   private animateMerge(landed: Pos): void {
     // A merge that lifts the highest tier reached is a "new level" — the crown
-    // moves to this block and pops in. Arm the one-shot pop for this redraw.
+    // moves to THIS block (by identity) and pops in. Only a record-setting merge
+    // is crowned, so ordinary merges never get one. Arm the pop for this redraw.
     const newRecord = this.model.reachedTier > this.crownedTier;
+    if (newRecord) this.crownedBlock = cellAt(this.model.grid, landed);
     this.crownPop = newRecord;
     this.redraw();
     this.crownPop = false;

@@ -52,6 +52,11 @@ export class BoardScene extends Phaser.Scene {
   private fallOffset = new Map<string, number>();
   private settleTween?: Phaser.Tweens.Tween;
 
+  /** Lowest tier that earns a crown. In the original the crown first appears on
+   * the block that reaches 1024 (2^10 = tier 10), then moves up to each new
+   * biggest — it is never shown on smaller numbers. */
+  private static readonly CROWN_MIN_TIER = 10;
+
   /** The highest tier that currently wears the crown. When a merge pushes the
    * reached tier above this, the merge that did it hands the crown to its
    * result block. */
@@ -780,7 +785,7 @@ export class BoardScene extends Phaser.Scene {
   private syncCrownedBlock(): void {
     this.crownedBlock = null;
     const tier = this.model.reachedTier;
-    if (tier <= 1) return;
+    if (tier < BoardScene.CROWN_MIN_TIER) return; // below 1024: no crown
     for (let row = 0; row < ROWS; row++) {
       for (let col = 0; col < COLS; col++) {
         const c = this.model.grid[row][col];
@@ -1100,7 +1105,10 @@ export class BoardScene extends Phaser.Scene {
     // A merge that lifts the highest tier reached is a "new level" — the crown
     // moves to THIS block (by identity) and pops in. Only a record-setting merge
     // is crowned, so ordinary merges never get one. Arm the pop for this redraw.
-    const newRecord = this.model.reachedTier > this.crownedTier;
+    // Only a new record at or above the crown threshold (1024) earns the crown.
+    const newRecord =
+      this.model.reachedTier > this.crownedTier &&
+      this.model.reachedTier >= BoardScene.CROWN_MIN_TIER;
     if (newRecord) this.crownedBlock = cellAt(this.model.grid, landed);
     this.crownPop = newRecord;
     this.redraw();

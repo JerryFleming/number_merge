@@ -1,8 +1,8 @@
 import Phaser from "phaser";
-import { Game } from "../core/game";
+import { Game, type PowerUp } from "../core/game";
 import { cellAt } from "../core/board";
 import { magnetUsable } from "../core/powerups";
-import { COLS, ROWS, type Pos } from "../core/types";
+import { COLS, ROWS, type Grid, type Pos } from "../core/types";
 import {
   cellCenter,
   cellSize,
@@ -43,6 +43,7 @@ export class BoardScene extends Phaser.Scene {
   private tutorial!: Tutorial;
   private sfx!: Sfx;
   private muteButton!: Phaser.GameObjects.Text;
+  private helpButton!: Phaser.GameObjects.Text;
   private restartButton!: Phaser.GameObjects.Container;
   private resumedOnLoad = false;
 
@@ -60,6 +61,16 @@ export class BoardScene extends Phaser.Scene {
 
   // Swap needs two taps; hold the first here.
   private swapFirst: Pos | null = null;
+
+  /** When the tutorial is replayed from the help button mid-game, the player's
+   * game is snapshotted here and restored when the tutorial ends (a first-run
+   * tutorial leaves this null and starts a fresh board instead). */
+  private preTutorialSnapshot: {
+    grid: Grid;
+    score: bigint;
+    reachedTier: number;
+    useCounts: Record<PowerUp, number>;
+  } | null = null;
 
   constructor() {
     super("board");
@@ -144,6 +155,29 @@ export class BoardScene extends Phaser.Scene {
       this.toggleMute();
     });
 
+    // Help button: replays the how-to-play tutorial. Sits just left of mute.
+    this.helpButton = this.add
+      .text(this.helpButtonX(), SCORE_H * 0.80, "❓", { fontSize: "24px" })
+      .setOrigin(1, 0.5)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(500);
+    this.helpButton.on("pointerdown", (
+      _p: Phaser.Input.Pointer,
+      _x: number,
+      _y: number,
+      e: Phaser.Types.Input.EventData,
+    ) => {
+      e.stopPropagation?.();
+      this.tweens.add({
+        targets: this.helpButton,
+        scale: 0.84,
+        duration: 80,
+        yoyo: true,
+        ease: "Quad.Out",
+      });
+      this.replayTutorial();
+    });
+
     // New-game button: a drawn circular-arrow (refresh) vector icon plus a
     // "New" label, so it renders at a consistent size across devices (an emoji
     // glyph does not). Origin is the container's own (0,0); laid out at x=12.
@@ -225,6 +259,7 @@ export class BoardScene extends Phaser.Scene {
     this.layoutTitleRow();
     this.scoreText?.setX(this.scale.width / 2);
     this.muteButton?.setPosition(this.scale.width - 12, SCORE_H * 0.80);
+    this.helpButton?.setPosition(this.helpButtonX(), SCORE_H * 0.80);
     this.restartButton?.setPosition(12, SCORE_H * 0.80);
     this.powerBar?.layout();
     this.gameOver?.layout();
@@ -500,6 +535,35 @@ export class BoardScene extends Phaser.Scene {
 
   // --- tutorial -----------------------------------------------------------
 
+  /** Right edge x for the help button: just left of the mute icon. Falls back
+   * to a fixed gap before the mute button has measured its width. */
+  private helpButtonX(): number {
+    const muteW = this.muteButton?.width ?? 26;
+    return this.scale.width - 12 - muteW - 14;
+  }
+
+  /** Replay the how-to-play tutorial on demand (the header's help button).
+   * Resets any in-progress targeting/drag and runs from step 1; the normal
+   * game resumes when it finishes or is skipped. */
+  private replayTutorial(): void {
+    if (this.tutorial.isActive) return; // already running
+    this.model.cancelTargeting();
+    this.powerBar.clearActive();
+    this.swapFirst = null;
+    this.dragging = false;
+    this.gameOver.hide();
+    // Snapshot the player's game so finishing the replay restores it (the
+    // tutorial overwrites the board with its scripted steps).
+    this.preTutorialSnapshot = {
+      grid: this.model.grid.map((r) => r.slice()),
+      score: this.model.score,
+      reachedTier: this.model.reachedTier,
+      useCounts: { ...this.model.useCounts },
+    };
+    this.tutorial.setGeometry(this.origin, this.size);
+    this.tutorial.start();
+  }
+
   /** Is `pos` one of the cells the current tutorial step lets the player use? */
   private tutorialAllows(pos: Pos): boolean {
     return this.tutorial.allowedCells.some(
@@ -540,9 +604,24 @@ export class BoardScene extends Phaser.Scene {
     this.redraw();
   }
 
-  /** Tutorial finished (or skipped): persist the flag and start a real game. */
+  /** Tutorial finished (or skipped): persist the flag, then either restore the
+   * player's game (manual replay) or start a fresh board (first run). */
   private onTutorialFinished(): void {
     this.markTutorialDone();
+    const snap = this.preTutorialSnapshot;
+    this.preTutorialSnapshot = null;
+    if (snap) {
+      // Manual replay from the help button: put the player's game back.
+      this.model.restore(snap);
+      this.crownedTier = this.model.reachedTier;
+      this.scoreText.setText(this.model.score.toString());
+      this.powerBar.setCounts(this.model.useCounts);
+      this.save();
+      this.redraw();
+      this.checkGameOver();
+      return;
+    }
+    // First run: start a real game and drop it in under gravity.
     this.model.startNew();
     this.crownedTier = this.model.reachedTier;
     this.scoreText.setText("0");

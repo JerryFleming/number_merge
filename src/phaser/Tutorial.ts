@@ -86,24 +86,31 @@ export class Tutorial {
         fontStyle: "bold",
       })
       .setOrigin(0.5);
+    // A padded pill so the tap target is large and the hit area (set from the
+    // text's own size, origin 0.5) lines up with what's drawn.
     this.skip = scene.add
-      .text(0, 0, "Skip", {
+      .text(0, 0, "Skip  ✕", {
         fontFamily: "system-ui, sans-serif",
-        fontSize: "15px",
-        color: "#9aa3b2",
+        fontSize: "16px",
+        color: "#ffffff",
         fontStyle: "bold",
+        backgroundColor: "#2a3346",
+        padding: { x: 14, y: 8 },
       })
       .setOrigin(1, 0.5)
       .setInteractive({ useHandCursor: true });
-    this.skip.on("pointerdown", (
-      _p: Phaser.Input.Pointer,
-      _x: number,
-      _y: number,
-      e: Phaser.Types.Input.EventData,
+    const skipHandler = (
+      _p?: Phaser.Input.Pointer,
+      _x?: number,
+      _y?: number,
+      e?: Phaser.Types.Input.EventData,
     ) => {
-      e.stopPropagation?.();
+      e?.stopPropagation?.();
       this.finish();
-    });
+    };
+    // pointerup is the reliable "tap" on touch; keep pointerdown too.
+    this.skip.on("pointerdown", skipHandler);
+    this.skip.on("pointerup", skipHandler);
 
     this.container = scene.add.container(0, 0, [
       this.dim,
@@ -112,9 +119,12 @@ export class Tutorial {
       this.stepLabel,
       this.title,
       this.desc,
-      this.skip,
     ]);
     this.container.setDepth(1100).setVisible(false);
+    // Skip stays OUT of the container and at a higher depth: a top-level
+    // interactive object gets a world-space hit area, avoiding container
+    // input-transform quirks that can make it unclickable.
+    this.skip.setDepth(1200).setVisible(false);
   }
 
   get isActive(): boolean {
@@ -145,6 +155,7 @@ export class Tutorial {
     this.active = true;
     this.index = 0;
     this.container.setVisible(true);
+    this.skip.setVisible(true);
     this.beginStep();
   }
 
@@ -282,9 +293,11 @@ export class Tutorial {
   }
 
   private finish(): void {
+    if (!this.active) return; // guard against a double tap (down + up)
     this.active = false;
     this.handTween?.remove();
     this.container.setVisible(false);
+    this.skip.setVisible(false);
     this.dim.clear();
     this.ring.clear();
     this.onFinished();

@@ -9,6 +9,7 @@ import {
   cellSize,
   gridOrigin,
   posFromPixel,
+  posFromPixelInner,
   SCORE_H,
   type Point,
 } from "./layout";
@@ -52,6 +53,14 @@ export class BoardScene extends Phaser.Scene {
    * Keyed "col,row" of the block's FINAL cell; 0 when settled. */
   private fallOffset = new Map<string, number>();
   private settleTween?: Phaser.Tweens.Tween;
+
+  /** Idle "hint" that highlights a possible move when the player sits still.
+   * `hintTimer` fires after HINT_IDLE_MS of no interaction; `hintGfx`/`hintTween`
+   * render the pulsing rings until the next interaction. */
+  private static readonly HINT_IDLE_MS = 6000;
+  private hintTimer?: Phaser.Time.TimerEvent;
+  private hintGfx?: Phaser.GameObjects.Graphics;
+  private hintTween?: Phaser.Tweens.Tween;
 
   /** Lowest tier that earns a crown. In the original the crown first appears on
    * the block that reaches 1024 (2^10 = tier 10), then moves up to each new
@@ -228,6 +237,7 @@ export class BoardScene extends Phaser.Scene {
     if (this.resumedOnLoad) {
       // A resumed game: a returning player, so never the tutorial.
       this.redraw();
+      this.resetHintTimer();
     } else if (this.shouldRunTutorial()) {
       // Brand-new player (no save, tutorial not yet seen): run the intro.
       this.tutorial.setGeometry(this.origin, this.size);
@@ -235,6 +245,7 @@ export class BoardScene extends Phaser.Scene {
     } else {
       // Fresh game for a returning player: drop the board in under gravity.
       this.animateNewGame();
+      this.resetHintTimer();
     }
   }
 
@@ -279,6 +290,8 @@ export class BoardScene extends Phaser.Scene {
     this.gameOver?.layout();
     this.tutorial?.setGeometry(this.origin, this.size);
     this.redraw();
+    // Hint rings were drawn at the old geometry; re-arm from the new one.
+    if (this.hintTimer) this.resetHintTimer();
   }
 
   // --- input --------------------------------------------------------------
@@ -287,8 +300,16 @@ export class BoardScene extends Phaser.Scene {
     return posFromPixel(pointer.x, pointer.y, this.origin, this.size);
   }
 
+  /** The cell under the pointer, but only when the pointer is well inside it
+   * (central region). Used while dragging so diagonal moves don't snap onto an
+   * orthogonal neighbour whose edge the finger merely grazes. */
+  private pointerToPosInner(pointer: Phaser.Input.Pointer): Pos | null {
+    return posFromPixelInner(pointer.x, pointer.y, this.origin, this.size);
+  }
+
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     this.sfx.unlock(); // first user gesture satisfies browser autoplay rules
+    this.resetHintTimer(); // any interaction clears a hint and restarts idle
     // Tutorial Skip sits above the board (where pointerToPos is null), so test
     // it here in the always-firing global handler before any early return.
     if (this.tutorial.isActive && this.tutorial.tryTapSkip(pointer.x, pointer.y)) {
@@ -318,7 +339,9 @@ export class BoardScene extends Phaser.Scene {
 
   private onPointerMove(pointer: Phaser.Input.Pointer): void {
     if (!this.dragging || this.model.targeting) return;
-    const pos = this.pointerToPos(pointer);
+    // Inner hit-test: ignore cells the finger only grazes at the edge, so a
+    // diagonal drag isn't stolen by an orthogonal neighbour en route.
+    const pos = this.pointerToPosInner(pointer);
     if (!pos) return;
     // Keep the drag confined to the demo cells during a drag-step tutorial.
     if (this.tutorial.isActive && !this.tutorialAllows(pos)) return;
@@ -536,14 +559,20 @@ export class BoardScene extends Phaser.Scene {
     this.powerBar.setCounts(this.model.useCounts); // reset badges to 0
     this.save(); // persist the fresh board so a reload resumes the new game
     this.animateNewGame(); // drop every block in under gravity
+    this.resetHintTimer();
   }
 
   private checkGameOver(): void {
     if (this.model.isOver) {
+      this.clearHint();
+      this.hintTimer?.remove();
       this.sfx.play("gameover");
       this.gameOver.show(this.model.score);
       this.clearSave(); // a finished game shouldn't resume on reload
+      return;
     }
+    // Board changed and play continues: restart the idle countdown.
+    this.resetHintTimer();
   }
 
   private toggleMute(): void {
@@ -586,6 +615,8 @@ export class BoardScene extends Phaser.Scene {
     this.swapFirst = null;
     this.dragging = false;
     this.gameOver.hide();
+    this.clearHint();
+    this.hintTimer?.remove();
     // Snapshot the player's game so finishing the replay restores it (the
     // tutorial overwrites the board with its scripted steps).
     this.preTutorialSnapshot = {
@@ -672,6 +703,7 @@ export class BoardScene extends Phaser.Scene {
     this.powerBar.setCounts(this.model.useCounts);
     this.save();
     this.animateNewGame();
+    this.resetHintTimer();
   }
 
   // --- persistence --------------------------------------------------------
@@ -1287,6 +1319,59 @@ export class BoardScene extends Phaser.Scene {
       alpha: 0,
       duration: 350,
       onComplete: () => ring.destroy(),
+    });
+  }
+
+  // --- idle hint ----------------------------------------------------------
+
+  /** Clear any shown hint, then restart the idle countdown. Call on every
+   * interaction and after the board settles, so a hint only appears once the
+   * player has sat still for HINT_IDLE_MS. */
+  private resetHintTimer(): void {
+    this.clearHint();
+    this.hintTimer?.remove();
+    this.hintTimer = this.time.delayedCall(
+      BoardScene.HINT_IDLE_MS,
+      () => this.showHint(),
+    );
+  }
+
+  /** Remove the hint highlight (not the timer). */
+  private clearHint(): void {
+    this.hintTween?.remove();
+    this.hintTween = undefined;
+    this.hintGfx?.destroy();
+    this.hintGfx = undefined;
+  }
+
+  /** Highlight one possible move (an equal adjacent pair) with a gentle pulse.
+   * Skipped while the player is busy (dragging, targeting, tutorial, or over). */
+  private showHint(): void {
+    if (
+      this.dragging ||
+      this.model.targeting ||
+      this.model.isOver ||
+      this.tutorial?.isActive
+    ) {
+      return;
+    }
+    const pair = this.model.hint;
+    if (!pair) return;
+    const g = this.add.graphics().setDepth(400);
+    const s = this.size - this.size * 0.06 * 2;
+    for (const p of pair) {
+      const c = cellCenter(p, this.origin, this.size);
+      g.lineStyle(Math.max(4, this.size * 0.07), 0xffffff, 1);
+      g.strokeRoundedRect(c.x - s / 2, c.y - s / 2, s, s, s * 0.18);
+    }
+    this.hintGfx = g;
+    this.hintTween = this.tweens.add({
+      targets: g,
+      alpha: { from: 1, to: 0.25 },
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.InOut",
     });
   }
 }

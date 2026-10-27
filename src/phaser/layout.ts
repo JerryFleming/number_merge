@@ -97,3 +97,27 @@ export function posFromPixel(
   if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return null;
   return { col, row };
 }
+
+/**
+ * Like `posFromPixel`, but only registers a cell when the pointer is within its
+ * central region (an `inset` fraction trimmed off each edge). Used while
+ * dragging so that brushing the edge of an orthogonal neighbour on the way to a
+ * diagonal one doesn't snap onto it — a deliberate move into a cell's middle
+ * still lands. Returns null in the inter-cell gutter near edges/corners.
+ */
+export function posFromPixelInner(
+  x: number,
+  y: number,
+  origin: Point,
+  size: number,
+  inset = 0.22,
+): Pos | null {
+  const col = Math.floor((x - origin.x) / size);
+  const row = Math.floor((y - origin.y) / size);
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return null;
+  // Fractional position within the cell (0..1 on each axis).
+  const fx = (x - origin.x) / size - col;
+  const fy = (y - origin.y) / size - row;
+  if (fx < inset || fx > 1 - inset || fy < inset || fy > 1 - inset) return null;
+  return { col, row };
+}

@@ -289,6 +289,11 @@ export class BoardScene extends Phaser.Scene {
 
   private onPointerDown(pointer: Phaser.Input.Pointer): void {
     this.sfx.unlock(); // first user gesture satisfies browser autoplay rules
+    // Tutorial Skip sits above the board (where pointerToPos is null), so test
+    // it here in the always-firing global handler before any early return.
+    if (this.tutorial.isActive && this.tutorial.tryTapSkip(pointer.x, pointer.y)) {
+      return;
+    }
     if (this.model.isOver) return;
     const pos = this.pointerToPos(pointer);
     if (!pos) return;

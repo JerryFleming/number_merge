@@ -86,8 +86,9 @@ export class Tutorial {
         fontStyle: "bold",
       })
       .setOrigin(0.5);
-    // A padded pill so the tap target is large and the hit area (set from the
-    // text's own size, origin 0.5) lines up with what's drawn.
+    // A padded pill. Centered origin + an explicit hit rectangle sized to the
+    // text gives a hit area that reliably lines up with what's drawn (origin
+    // (1,0.5) previously left the hit box offset from the glyphs).
     this.skip = scene.add
       .text(0, 0, "Skip  ✕", {
         fontFamily: "system-ui, sans-serif",
@@ -97,7 +98,7 @@ export class Tutorial {
         backgroundColor: "#2a3346",
         padding: { x: 14, y: 8 },
       })
-      .setOrigin(1, 0.5)
+      .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     const skipHandler = (
       _p?: Phaser.Input.Pointer,
@@ -109,8 +110,8 @@ export class Tutorial {
       this.finish();
     };
     // pointerup is the reliable "tap" on touch; keep pointerdown too.
-    this.skip.on("pointerdown", skipHandler);
     this.skip.on("pointerup", skipHandler);
+    this.skip.on("pointerdown", skipHandler);
 
     this.container = scene.add.container(0, 0, [
       this.dim,
@@ -141,6 +142,25 @@ export class Tutorial {
 
   get currentStep(): TutorialStep | null {
     return this.steps[this.index] ?? null;
+  }
+
+  /** If the pointer is within the Skip pill, end the tutorial and return true.
+   * The scene calls this from its own (always-firing) pointer handler, so Skip
+   * works even if the GameObject-level input misses the tap. */
+  tryTapSkip(x: number, y: number): boolean {
+    if (!this.active || !this.skip.visible) return false;
+    const b = this.skip.getBounds();
+    // A little slop around the pill for comfortable tapping.
+    if (
+      x >= b.x - 8 &&
+      x <= b.right + 8 &&
+      y >= b.y - 8 &&
+      y <= b.bottom + 8
+    ) {
+      this.finish();
+      return true;
+    }
+    return false;
   }
 
   /** Keep the overlay aligned with the board after layout/resize. */
@@ -220,7 +240,8 @@ export class Tutorial {
       .setPosition(w / 2, bannerY - 26);
     this.title.setPosition(w / 2, bannerY + 2);
     this.desc.setPosition(w / 2, bannerY + 34);
-    this.skip.setPosition(w - 16, 20);
+    // Centered origin: offset by half-size to keep the pill in the top-right.
+    this.skip.setPosition(w - 16 - this.skip.width / 2, 24 + this.skip.height / 2);
     if (this.title.text !== step.title) this.title.setText(step.title);
     if (this.desc.text !== step.description) this.desc.setText(step.description);
 

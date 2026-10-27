@@ -2,8 +2,9 @@ import Phaser from "phaser";
 import type { Pos } from "../core/types";
 import { tutorialSteps, type TutorialStep } from "../core/tutorial";
 import { cellCenter, bottomInset, POWER_BAR_H, type Point } from "./layout";
-import { COLORS } from "./theme";
+import { COLORS, tierColor } from "./theme";
 import { TEX } from "./assets";
+import { cellAt } from "../core/board";
 
 /**
  * First-run interactive tutorial, modelled on the original game's 3-step
@@ -24,6 +25,7 @@ export class Tutorial {
   private dim: Phaser.GameObjects.Graphics;
   private holeMaskG: Phaser.GameObjects.Graphics;
   private ring: Phaser.GameObjects.Graphics;
+  private demoLine: Phaser.GameObjects.Graphics;
   private hand: Phaser.GameObjects.Image;
   private title: Phaser.GameObjects.Text;
   private desc: Phaser.GameObjects.Text;
@@ -31,6 +33,7 @@ export class Tutorial {
   private skip: Phaser.GameObjects.Text;
 
   private handTween?: Phaser.Tweens.Tween | Phaser.Tweens.TweenChain;
+  private lineTween?: Phaser.Tweens.Tween;
 
   // Board geometry, kept in sync by the scene via setGeometry().
   private origin: Point = { x: 0, y: 0 };
@@ -52,6 +55,9 @@ export class Tutorial {
     this.dim.setMask(mask);
 
     this.ring = scene.add.graphics();
+    // The demo connector line, drawn under the hand as it sweeps the cells
+    // (same look as the live game's path line).
+    this.demoLine = scene.add.graphics();
 
     this.hand = scene.add
       .image(0, 0, TEX.hand)
@@ -116,6 +122,7 @@ export class Tutorial {
     this.container = scene.add.container(0, 0, [
       this.dim,
       this.ring,
+      this.demoLine,
       this.hand,
       this.stepLabel,
       this.title,
@@ -254,11 +261,16 @@ export class Tutorial {
     // stop(), not remove(): TweenChain.remove() removes a CHILD tween (and
     // throws when passed nothing), whereas stop() halts the whole tween/chain.
     this.handTween?.stop();
+    this.lineTween?.stop();
+    this.demoLine.clear();
     this.hand.setDisplaySize(this.size * 0.78, this.size * 0.78 * (250 / 171));
     this.hand.setAngle(0).setAlpha(1);
 
     if (step.demo.length >= 2) {
       const pts = step.demo.map((p) => cellCenter(p, this.origin, this.size));
+      // Line color = first demo block's tier color, matching the live game.
+      const head = cellAt(step.grid, step.demo[0]);
+      const lineColor = head ? tierColor(head.tier) : COLORS.line;
       // Place at the first cell, then tween through the rest and loop.
       this.hand.setPosition(pts[0].x, pts[0].y);
       this.handTween = this.scene.tweens.chain({
@@ -284,6 +296,26 @@ export class Tutorial {
           },
         ],
       });
+      // Draw a connector that grows with the hand: `progress` spans the segments
+      // (0..pts.length-1) over the sweep, then resets with the hand's loop. Its
+      // timing mirrors the chain: 140ms tap + 520ms per segment + 400ms fade.
+      const sweepMs = 520 * (pts.length - 1);
+      const loopMs = 140 + sweepMs + 220 + 180 + 160 + 1;
+      const prog = { t: 0 };
+      this.lineTween = this.scene.tweens.add({
+        targets: prog,
+        t: pts.length - 1,
+        duration: sweepMs,
+        delay: 140, // align with the hand's starting tap
+        ease: "Sine.InOut",
+        repeat: -1,
+        repeatDelay: loopMs - sweepMs - 140, // stay full, then reset with the hand
+        onUpdate: () => this.drawDemoLine(pts, prog.t, lineColor),
+        onRepeat: () => {
+          prog.t = 0;
+          this.demoLine.clear();
+        },
+      });
     } else {
       // Power-up step: hover the hand just above the power bar, bobbing toward
       // it so the fingertip reads as pointing at the buttons below.
@@ -303,6 +335,34 @@ export class Tutorial {
     }
   }
 
+  /** Draw the growing connector along the demo points up to fractional progress
+   * `t` (segment index, e.g. 1.5 = full first segment + half the second). Same
+   * thickness/style as the live game's path line. */
+  private drawDemoLine(
+    pts: Point[],
+    t: number,
+    color: number,
+  ): void {
+    this.demoLine.clear();
+    if (t <= 0 || pts.length < 2) return;
+    const whole = Math.floor(t);
+    const frac = t - whole;
+    this.demoLine.lineStyle(Math.max(6, this.size * 0.12), color, 0.85);
+    this.demoLine.beginPath();
+    this.demoLine.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i <= whole && i < pts.length; i++) {
+      this.demoLine.lineTo(pts[i].x, pts[i].y);
+    }
+    // Partial segment to the hand's current spot.
+    const next = whole + 1;
+    if (frac > 0 && next < pts.length) {
+      const a = pts[whole];
+      const b = pts[next];
+      this.demoLine.lineTo(a.x + (b.x - a.x) * frac, a.y + (b.y - a.y) * frac);
+    }
+    this.demoLine.strokePath();
+  }
+
   /** Flash the demo cells red briefly when the player makes a wrong move (the
    * original's "detect block item failed" feedback). */
   flashWrong(): void {
@@ -319,10 +379,12 @@ export class Tutorial {
     if (!this.active) return; // guard against a double tap (down + up)
     this.active = false;
     this.handTween?.stop(); // stop(), not remove() — see startHand()
+    this.lineTween?.stop();
     this.container.setVisible(false);
     this.skip.setVisible(false);
     this.dim.clear();
     this.ring.clear();
+    this.demoLine.clear();
     this.onFinished();
   }
 }

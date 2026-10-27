@@ -48,6 +48,13 @@ export class BoardScene extends Phaser.Scene {
   private fallOffset = new Map<string, number>();
   private settleTween?: Phaser.Tweens.Tween;
 
+  /** The highest tier that currently wears the crown. When a merge pushes the
+   * reached tier above this, the next redraw pops the crown in (new record). */
+  private crownedTier = 0;
+  /** Set for one redraw when a new record is set, so the crown on the fresh
+   * record block plays its scale-up overshoot instead of appearing instantly. */
+  private crownPop = false;
+
   // Swap needs two taps; hold the first here.
   private swapFirst: Pos | null = null;
 
@@ -157,6 +164,9 @@ export class BoardScene extends Phaser.Scene {
     this.scale.on("resize", this.onResize, this);
 
     this.powerBar.setCounts(this.model.useCounts); // show resumed counts, if any
+
+    // A resumed game already holds its record tier: crown it quietly (no pop).
+    this.crownedTier = this.model.reachedTier;
 
     // Fresh game (no save resumed): drop the board in under gravity.
     if (this.resumedOnLoad) this.redraw();
@@ -404,6 +414,7 @@ export class BoardScene extends Phaser.Scene {
 
   private restart(): void {
     this.model.startNew();
+    this.crownedTier = this.model.reachedTier; // reset: no crown until re-earned
     this.gameOver.hide();
     this.swapFirst = null;
     this.scoreText.setText("0");
@@ -543,10 +554,51 @@ export class BoardScene extends Phaser.Scene {
             })
             .setOrigin(0.5);
           this.cellLayer.add(label);
+
+          // Crown the block(s) at the highest tier reached so far (the
+          // original's "block-add-crown-icon"). It lives inside cellLayer, so it
+          // rides the same fall offset and tracks the block through gravity.
+          if (c.tier === this.model.reachedTier && c.tier > 1) {
+            this.addCrown(center.x, center.y - s / 2, s);
+          }
         }
       }
     }
     this.drawPathLine();
+  }
+
+  /** Draw the crown sprite straddling the top edge of a block centered at
+   * (cx, topY). When a new record was just set, it pops in with a scale-up
+   * overshoot (the original's best-score crown scale-up ease). */
+  private addCrown(cx: number, topY: number, blockSize: number): void {
+    const tex = this.textures.exists(TEX.crown);
+    const w = blockSize * 0.5;
+    const h = (w * 59) / 111; // preserve the sprite's aspect ratio
+    const y = topY + h * 0.15; // sit astride the top edge, like the original
+    let crown: Phaser.GameObjects.GameObject;
+    if (tex) {
+      crown = this.add
+        .image(cx, y, TEX.crown)
+        .setOrigin(0.5)
+        .setDisplaySize(w, h);
+    } else {
+      // Fallback if the sprite failed to load: a small gold diamond marker.
+      const g = this.add.graphics();
+      g.fillStyle(0xffd166, 1);
+      g.fillTriangle(cx - w / 2, y, cx + w / 2, y, cx, y - h);
+      crown = g;
+    }
+    this.cellLayer.add(crown);
+    if (this.crownPop) {
+      // New record: scale the crown up from nothing with an overshoot bounce.
+      (crown as Phaser.GameObjects.Image).setScale?.(0.1);
+      this.tweens.add({
+        targets: crown,
+        scale: 1,
+        ease: "Back.Out",
+        duration: 300,
+      });
+    }
   }
 
   private drawPathLine(): void {
@@ -820,7 +872,13 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private animateMerge(landed: Pos): void {
+    // A merge that lifts the highest tier reached is a "new level" — the crown
+    // moves to this block and pops in. Arm the one-shot pop for this redraw.
+    const newRecord = this.model.reachedTier > this.crownedTier;
+    this.crownPop = newRecord;
     this.redraw();
+    this.crownPop = false;
+    this.crownedTier = this.model.reachedTier;
     // Pop the landed block: find and scale-bounce it.
     const center = cellCenter(landed, this.origin, this.size);
     const target = this.cellLayer.list.find(

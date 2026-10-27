@@ -1,7 +1,7 @@
 import { applyPointer } from "./connect";
 import { collapseColumns, refill } from "./gravity";
 import { resolveMerge, type MergeResult } from "./merge";
-import { hasAnyMove } from "./moves";
+import { findAnyMove, hasAnyMove } from "./moves";
 import { hammer, magnet, magnetUsable, swap } from "./powerups";
 import { seedBoard } from "./seed";
 import { spawnRange } from "./spawn";
@@ -65,6 +65,12 @@ export class Game {
    * identity). Used by the view to animate gravity; empty after restore/new. */
   get lastSettle(): ReadonlyMap<Cell, number> {
     return this._lastSettle;
+  }
+
+  /** One valid opening move (an equal adjacent pair), or null if none. Used by
+   * the view to highlight a hint when the player is idle. */
+  get hint(): [Pos, Pos] | null {
+    return findAnyMove(this._grid);
   }
 
   /** Reset to a fresh, solvable random board. */

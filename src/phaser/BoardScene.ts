@@ -45,7 +45,7 @@ export class BoardScene extends Phaser.Scene {
   private tutorial!: Tutorial;
   private sfx!: Sfx;
   private muteButton!: Phaser.GameObjects.Text;
-  private helpButton!: Phaser.GameObjects.Text;
+  private helpButton!: Phaser.GameObjects.Container;
   private restartButton!: Phaser.GameObjects.Container;
   private resumedOnLoad = false;
 
@@ -176,11 +176,12 @@ export class BoardScene extends Phaser.Scene {
       this.toggleMute();
     });
 
-    // Help button: replays the how-to-play tutorial. Sits just left of mute.
-    this.helpButton = this.add
-      .text(this.helpButtonX(), SCORE_H * 0.80, "❓", { fontSize: "24px" })
-      .setOrigin(1, 0.5)
-      .setInteractive({ useHandCursor: true })
+    // Help button: a drawn graduation-cap ("how to play") icon that replays the
+    // tutorial. Drawn vector so it reads clearly and renders the same on every
+    // device (an emoji did not). Sits just left of mute.
+    this.helpButton = this.makeTutorialButton();
+    this.helpButton
+      .setPosition(this.helpButtonX(), SCORE_H * 0.8)
       .setDepth(500);
     this.helpButton.on("pointerdown", (
       _p: Phaser.Input.Pointer,
@@ -549,6 +550,58 @@ export class BoardScene extends Phaser.Scene {
     return container;
   }
 
+  /** Build the tutorial button: a drawn graduation-cap ("how to play") icon,
+   * centered on the container's (0,0) so it can be right-anchored like the mute
+   * button. A generous centered hit area makes it easy to tap. */
+  private makeTutorialButton(): Phaser.GameObjects.Container {
+    const g = this.add.graphics();
+    const gold = 0xffd166;
+    const w = 22; // mortarboard half-width
+    const topH = 7; // mortarboard half-height (the flat diamond board)
+    const boardY = -3; // the board sits a little above center
+
+    // Mortarboard: a flat diamond (the square cap seen in perspective).
+    g.fillStyle(gold, 1);
+    g.beginPath();
+    g.moveTo(0, boardY - topH);
+    g.lineTo(w, boardY);
+    g.lineTo(0, boardY + topH);
+    g.lineTo(-w, boardY);
+    g.closePath();
+    g.fillPath();
+
+    // Cap base: a small trapezoid hanging under the board's center (the head
+    // band of the cap), drawn in the dark bg color so it reads as a cutout.
+    g.fillStyle(COLORS.bg, 1);
+    g.beginPath();
+    g.moveTo(-w * 0.42, boardY + topH * 0.2);
+    g.lineTo(w * 0.42, boardY + topH * 0.2);
+    g.lineTo(w * 0.3, boardY + topH + 7);
+    g.lineTo(-w * 0.3, boardY + topH + 7);
+    g.closePath();
+    g.fillPath();
+    g.lineStyle(2, gold, 1);
+    g.strokePath();
+
+    // Tassel: a short cord from the board's right tip down to a little knob.
+    const tx = w * 0.62;
+    g.lineStyle(2, gold, 1);
+    g.beginPath();
+    g.moveTo(0, boardY); // button center on the board
+    g.lineTo(tx, boardY + 1);
+    g.lineTo(tx, boardY + 9);
+    g.strokePath();
+    g.fillStyle(gold, 1);
+    g.fillCircle(tx, boardY + 11, 2.2);
+
+    const container = this.add.container(0, 0, [g]);
+    container.setInteractive(
+      new Phaser.Geom.Rectangle(-w - 4, -SCORE_H * 0.33, w * 2 + 8, SCORE_H * 0.66),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    return container;
+  }
+
   private restart(): void {
     this.model.startNew();
     this.crownedTier = this.model.reachedTier; // reset: no crown until re-earned
@@ -598,11 +651,13 @@ export class BoardScene extends Phaser.Scene {
 
   // --- tutorial -----------------------------------------------------------
 
-  /** Right edge x for the help button: just left of the mute icon. Falls back
-   * to a fixed gap before the mute button has measured its width. */
+  /** Center x for the tutorial (help) button: just left of the mute icon. The
+   * icon is drawn centered on its container with a ~22px half-width, so place
+   * its center a half-width in from where its right edge should sit. */
   private helpButtonX(): number {
     const muteW = this.muteButton?.width ?? 26;
-    return this.scale.width - 12 - muteW - 14;
+    const rightEdge = this.scale.width - 12 - muteW - 16;
+    return rightEdge - 22; // cap half-width
   }
 
   /** Replay the how-to-play tutorial on demand (the header's help button).

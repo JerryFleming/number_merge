@@ -334,18 +334,25 @@ export class BoardScene extends Phaser.Scene {
     const inTutorial = this.tutorial.isActive;
     if (result) {
       this.sfx.play("merge");
-      if (!inTutorial) this.save();
+      if (inTutorial) {
+        // Tutorial demo merge: fly the chain into the merged block and pop it,
+        // then advance. We skip the gravity settle (and its random refill) so
+        // the demo stays clean — the next step reloads its own scripted board.
+        this.animateMergeCollect(chain, result.landed, () => {
+          this.animateMerge(result.restingPos);
+          this.time.delayedCall(450, () => this.tutorial.advance());
+        });
+        return;
+      }
+      this.save();
       // Phase 1: consumed blocks fly into the landed cell. Phase 2 (settle +
       // result pop) runs after they arrive.
       this.animateMergeCollect(chain, result.landed, () => {
         this.animateSettle();
         this.animateMerge(result.restingPos);
-        // A completed demo merge advances the tutorial (after the pop reads);
-        // outside the tutorial, check for game over as usual.
-        if (inTutorial) this.time.delayedCall(420, () => this.tutorial.advance());
-        else this.checkGameOver();
+        this.checkGameOver();
       });
-      this.scoreText.setText(inTutorial ? "0" : this.model.score.toString());
+      this.scoreText.setText(this.model.score.toString());
       return;
     }
     if (chainLength > 0) {
@@ -608,6 +615,13 @@ export class BoardScene extends Phaser.Scene {
   /** Load the scripted board for a tutorial step and show it (no drop anim, so
    * the demo cells sit still under the hand). */
   private onTutorialStep(step: TutorialStep): void {
+    // Stop any in-flight board animation from the previous step's demo merge,
+    // and clear its fall offsets, so the new scripted board renders cleanly at
+    // its real positions (a leftover settle tween would keep redrawing stale,
+    // offset blocks and leave the demo cells unreachable).
+    this.settleTween?.remove();
+    this.settleTween = undefined;
+    this.fallOffset.clear();
     this.model.loadGrid(step.grid);
     this.crownedTier = this.model.reachedTier;
     this.crownedBlock = null; // no crown on the scripted demo board

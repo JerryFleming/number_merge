@@ -79,6 +79,11 @@ export class BoardScene extends Phaser.Scene {
   /** Set for one redraw when a new record is set, so the crown on the fresh
    * record block plays its scale-up overshoot instead of appearing instantly. */
   private crownPop = false;
+  /** True until the player first *earns* a crown in this session (a merge that
+   * newly sets a crowned record). The first such crown plays a one-time
+   * fanfare. Resuming a saved game that already has a crown does NOT consume
+   * this — the celebration only fires on a live record-setting merge. */
+  private firstCrownPending = true;
 
   // Swap needs two taps; hold the first here.
   private swapFirst: Pos | null = null;
@@ -1214,17 +1219,24 @@ export class BoardScene extends Phaser.Scene {
     const newRecord =
       this.model.reachedTier > this.crownedTier &&
       this.model.reachedTier >= BoardScene.CROWN_MIN_TIER;
-    // The very first crown of the game: a new record earns the crown and there
-    // was no crown before (crownedTier was still below the threshold). Matches
-    // the original's one-time "best score ever" fanfare at first reaching 1K.
-    const firstCrown = newRecord && this.crownedTier < BoardScene.CROWN_MIN_TIER;
-    if (newRecord) this.crownedBlock = cellAt(this.model.grid, landed);
+    // The first crown earned this session: a record-setting merge at or above
+    // the crown threshold, with no crown earned yet. Usually this is the 1024
+    // merge, but a resumed game can first cross a record at a higher tier, so
+    // key off the session flag — not a fixed tier — and show the real value.
+    const firstCrown = newRecord && this.firstCrownPending;
+    if (newRecord) {
+      this.crownedBlock = cellAt(this.model.grid, landed);
+      this.firstCrownPending = false;
+    }
     this.crownPop = newRecord;
     this.redraw();
     this.crownPop = false;
     this.crownedTier = this.model.reachedTier;
     if (firstCrown) {
-      this.celebrateFirstCrown(cellCenter(landed, this.origin, this.size));
+      this.celebrateFirstCrown(
+        cellCenter(landed, this.origin, this.size),
+        this.model.reachedTier,
+      );
     }
     // Pop the landed block: find and scale-bounce it.
     const center = cellCenter(landed, this.origin, this.size);
@@ -1245,10 +1257,12 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
-  /** One-time fanfare the first time the crown is earned (first reaching 1024).
-   * A golden radial shine, a confetti burst, and a brief "New Best!" banner that
-   * pops in and fades, with the original's best-score celebration clip. */
-  private celebrateFirstCrown(center: { x: number; y: number }): void {
+  /** One-time fanfare the first time a crown is earned this session (usually the
+   * 1024 merge, but a resumed game can first cross a record higher up, so the
+   * banner shows the real value). A golden radial shine, a confetti burst, and
+   * a "New Best!" banner that pops in and fades, with the original's best-score
+   * clip. Deliberately unhurried so the moment registers. */
+  private celebrateFirstCrown(center: { x: number; y: number }, tier: number): void {
     this.sfx.play("celebrate");
 
     const gold = 0xffd166;
@@ -1265,7 +1279,7 @@ export class BoardScene extends Phaser.Scene {
       scale: 3,
       alpha: 0,
       ease: "Cubic.Out",
-      duration: 650,
+      duration: 1000,
       onComplete: () => shine.destroy(),
     });
 
@@ -1289,7 +1303,7 @@ export class BoardScene extends Phaser.Scene {
         rotation: bit.rotation + (Math.random() - 0.5) * 8,
         alpha: 0,
         ease: "Quad.Out",
-        duration: 700 + Math.random() * 400,
+        duration: 1100 + Math.random() * 600,
         onComplete: () => bit.destroy(),
       });
     }
@@ -1297,7 +1311,7 @@ export class BoardScene extends Phaser.Scene {
     // "New Best!" banner: pops in near the top of the board, holds, fades out.
     const bannerY = this.origin.y - this.size * 0.3;
     const banner = this.add
-      .text(cx, bannerY, "New Best! 1024", {
+      .text(cx, bannerY, `New Best! ${tierLabel(tier)}`, {
         fontFamily: "system-ui, sans-serif",
         fontSize: `${Math.floor(this.size * 0.42)}px`,
         color: "#ffd166",
@@ -1312,15 +1326,15 @@ export class BoardScene extends Phaser.Scene {
       targets: banner,
       scale: 1,
       ease: "Back.Out",
-      duration: 350,
+      duration: 550,
       onComplete: () => {
         this.tweens.add({
           targets: banner,
           y: bannerY - this.size * 0.4,
           alpha: 0,
           ease: "Quad.In",
-          delay: 900,
-          duration: 500,
+          delay: 1500,
+          duration: 750,
           onComplete: () => banner.destroy(),
         });
       },

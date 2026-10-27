@@ -113,6 +113,11 @@ export class Game {
     this._path = applyPointer(this._grid, this._path, pos);
   }
 
+  /** Discard the current drag path without merging or mutating the board. */
+  clearPath(): void {
+    this._path = [];
+  }
+
   /** Commit the current drag: merge if valid (>= 2), else clear the path. */
   commit(): MergeResult | null {
     const result = resolveMerge(this._grid, this._path);

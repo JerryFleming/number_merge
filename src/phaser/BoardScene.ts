@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { Game, type PowerUp } from "../core/game";
+import { resolveMerge } from "../core/merge";
 import { cellAt } from "../core/board";
 import { magnetUsable } from "../core/powerups";
 import { COLS, ROWS, type Cell, type Grid, type Pos } from "../core/types";
@@ -335,20 +336,32 @@ export class BoardScene extends Phaser.Scene {
       const c = cellAt(this.model.grid, p);
       return { pos: p, tier: c ? c.tier : 1 };
     });
-    const result = this.model.commit();
     const inTutorial = this.tutorial.isActive;
-    if (result) {
-      this.sfx.play("merge");
-      if (inTutorial) {
-        // Tutorial demo merge: fly the chain into the merged block and pop it,
-        // then advance. We skip the gravity settle (and its random refill) so
-        // the demo stays clean — the next step reloads its own scripted board.
-        this.animateMergeCollect(chain, result.landed, () => {
-          this.animateMerge(result.restingPos);
+
+    // Tutorial demo merge: resolve WITHOUT mutating the model (no collapse /
+    // random refill, which would wreck the scripted demo). A valid chain plays
+    // the collect-and-pop, then advances; an invalid one flashes the cells.
+    if (inTutorial) {
+      const resolved = resolveMerge(this.model.grid, this.model.path);
+      this.model.clearPath();
+      this.redraw(); // drop the drag selection before the fly-in
+      if (resolved) {
+        this.sfx.play("merge");
+        const landed = resolved.landed;
+        this.animateMergeCollect(chain, landed, () => {
+          this.flashMergeResult(landed, resolved.tier);
           this.time.delayedCall(450, () => this.tutorial.advance());
         });
-        return;
+      } else if (chainLength > 0 && this.tutorialIsDragStep()) {
+        this.sfx.play("invalid");
+        this.tutorial.flashWrong();
       }
+      return;
+    }
+
+    const result = this.model.commit();
+    if (result) {
+      this.sfx.play("merge");
       this.save();
       // Phase 1: consumed blocks fly into the landed cell. Phase 2 (settle +
       // result pop) runs after they arrive.
@@ -360,15 +373,10 @@ export class BoardScene extends Phaser.Scene {
       this.scoreText.setText(this.model.score.toString());
       return;
     }
-    if (chainLength > 0) {
-      this.sfx.play("invalid");
-      if (inTutorial && this.tutorialIsDragStep()) this.tutorial.flashWrong();
-    }
+    if (chainLength > 0) this.sfx.play("invalid");
     this.redraw();
-    if (!inTutorial) {
-      this.scoreText.setText(this.model.score.toString());
-      this.checkGameOver();
-    }
+    this.scoreText.setText(this.model.score.toString());
+    this.checkGameOver();
   }
 
   // --- power-ups ----------------------------------------------------------
@@ -1131,6 +1139,29 @@ export class BoardScene extends Phaser.Scene {
         duration: 220,
       });
     }
+  }
+
+  /** Tutorial-only: draw a transient merged-result block at `landed` and pop it
+   * in. The model isn't mutated during the tutorial, so this is a short-lived
+   * overlay (destroyed when the next step loads a fresh board). */
+  private flashMergeResult(landed: Pos, tier: number): void {
+    const center = cellCenter(landed, this.origin, this.size);
+    const s = this.size - this.size * 0.06 * 2;
+    const g = this.add.graphics();
+    g.fillStyle(tierColor(tier), 1);
+    g.fillRoundedRect(-s / 2, -s / 2, s, s, s * 0.18);
+    const t = this.add
+      .text(0, 0, tierLabel(tier), {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: `${Math.floor(this.size * 0.34)}px`,
+        color: tierTextColor(tier),
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+    const block = this.add.container(center.x, center.y, [g, t]).setDepth(920);
+    this.cellLayer.add(block);
+    block.setScale(0.1);
+    this.tweens.add({ targets: block, scale: 1, ease: "Back.Out", duration: 220 });
   }
 
   /** Draw the board with the pending fall offsets fully applied (blocks shown

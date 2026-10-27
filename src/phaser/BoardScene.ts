@@ -594,6 +594,11 @@ export class BoardScene extends Phaser.Scene {
     g.fillStyle(gold, 1);
     g.fillCircle(tx, boardY + 11, 2.2);
 
+    // The gold mortarboard carries the visual weight; nudge the whole glyph up
+    // so its perceived center sits on the row (level with the mute icon) rather
+    // than reading low because of the lighter cap/tassel below.
+    g.setY(-3);
+
     const container = this.add.container(0, 0, [g]);
     container.setInteractive(
       new Phaser.Geom.Rectangle(-w - 4, -SCORE_H * 0.33, w * 2 + 8, SCORE_H * 0.66),

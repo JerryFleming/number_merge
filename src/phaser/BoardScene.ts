@@ -1214,11 +1214,18 @@ export class BoardScene extends Phaser.Scene {
     const newRecord =
       this.model.reachedTier > this.crownedTier &&
       this.model.reachedTier >= BoardScene.CROWN_MIN_TIER;
+    // The very first crown of the game: a new record earns the crown and there
+    // was no crown before (crownedTier was still below the threshold). Matches
+    // the original's one-time "best score ever" fanfare at first reaching 1K.
+    const firstCrown = newRecord && this.crownedTier < BoardScene.CROWN_MIN_TIER;
     if (newRecord) this.crownedBlock = cellAt(this.model.grid, landed);
     this.crownPop = newRecord;
     this.redraw();
     this.crownPop = false;
     this.crownedTier = this.model.reachedTier;
+    if (firstCrown) {
+      this.celebrateFirstCrown(cellCenter(landed, this.origin, this.size));
+    }
     // Pop the landed block: find and scale-bounce it.
     const center = cellCenter(landed, this.origin, this.size);
     const target = this.cellLayer.list.find(
@@ -1236,6 +1243,88 @@ export class BoardScene extends Phaser.Scene {
         duration: 220,
       });
     }
+  }
+
+  /** One-time fanfare the first time the crown is earned (first reaching 1024).
+   * A golden radial shine, a confetti burst, and a brief "New Best!" banner that
+   * pops in and fades, with the original's best-score celebration clip. */
+  private celebrateFirstCrown(center: { x: number; y: number }): void {
+    this.sfx.play("celebrate");
+
+    const gold = 0xffd166;
+    const cx = this.scale.width / 2;
+
+    // Radial shine: a soft gold ring that expands and fades from the block.
+    const shine = this.add.graphics().setDepth(1000);
+    shine.lineStyle(Math.max(3, this.size * 0.08), gold, 0.9);
+    shine.strokeCircle(0, 0, this.size * 0.6);
+    shine.setPosition(center.x, center.y);
+    shine.setScale(0.3);
+    this.tweens.add({
+      targets: shine,
+      scale: 3,
+      alpha: 0,
+      ease: "Cubic.Out",
+      duration: 650,
+      onComplete: () => shine.destroy(),
+    });
+
+    // Golden confetti burst from the crowned block.
+    const confettiColors = [gold, 0xffe08a, 0xff8fab, 0x8ad0ff, 0xb9f6ca];
+    const n = 28;
+    for (let i = 0; i < n; i++) {
+      const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.6;
+      const speed = this.size * (1.0 + Math.random() * 1.6);
+      const bit = this.add.graphics().setDepth(1001);
+      const col = confettiColors[i % confettiColors.length];
+      bit.fillStyle(col, 1);
+      const r = Math.max(2, this.size * 0.06);
+      bit.fillRoundedRect(-r, -r * 0.6, r * 2, r * 1.2, r * 0.3);
+      bit.setPosition(center.x, center.y);
+      bit.setRotation(Math.random() * Math.PI);
+      this.tweens.add({
+        targets: bit,
+        x: center.x + Math.cos(angle) * speed,
+        y: center.y + Math.sin(angle) * speed + this.size * 1.2, // gravity arc
+        rotation: bit.rotation + (Math.random() - 0.5) * 8,
+        alpha: 0,
+        ease: "Quad.Out",
+        duration: 700 + Math.random() * 400,
+        onComplete: () => bit.destroy(),
+      });
+    }
+
+    // "New Best!" banner: pops in near the top of the board, holds, fades out.
+    const bannerY = this.origin.y - this.size * 0.3;
+    const banner = this.add
+      .text(cx, bannerY, "New Best! 1024", {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: `${Math.floor(this.size * 0.42)}px`,
+        color: "#ffd166",
+        fontStyle: "bold",
+        stroke: "#5a3d00",
+        strokeThickness: Math.max(2, this.size * 0.04),
+      })
+      .setOrigin(0.5)
+      .setDepth(1002)
+      .setScale(0.2);
+    this.tweens.add({
+      targets: banner,
+      scale: 1,
+      ease: "Back.Out",
+      duration: 350,
+      onComplete: () => {
+        this.tweens.add({
+          targets: banner,
+          y: bannerY - this.size * 0.4,
+          alpha: 0,
+          ease: "Quad.In",
+          delay: 900,
+          duration: 500,
+          onComplete: () => banner.destroy(),
+        });
+      },
+    });
   }
 
   /** Tutorial-only: draw a transient merged-result block at `landed` and pop it

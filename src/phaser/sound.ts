@@ -13,6 +13,7 @@ import magnetUrl from "../assets/audio/magnet.ogg";
 import swapUrl from "../assets/audio/swap.ogg";
 import gameoverUrl from "../assets/audio/gameover.ogg";
 import newgameUrl from "../assets/audio/newgame.ogg";
+import celebrateUrl from "../assets/audio/celebrate.ogg";
 import merge1Url from "../assets/audio/merge1.ogg";
 import merge2Url from "../assets/audio/merge2.ogg";
 import merge3Url from "../assets/audio/merge3.ogg";
@@ -31,6 +32,7 @@ export const SFX_NAMES = [
   "swap",
   "gameover",
   "newgame",
+  "celebrate",
 ] as const;
 
 export type SfxName = (typeof SFX_NAMES)[number];
@@ -57,6 +59,7 @@ export const AUDIO_ASSETS: ReadonlyArray<readonly [string, string]> = [
   ["swap", swapUrl],
   ["gameover", gameoverUrl],
   ["newgame", newgameUrl],
+  ["celebrate", celebrateUrl],
   ["merge1", merge1Url],
   ["merge2", merge2Url],
   ["merge3", merge3Url],

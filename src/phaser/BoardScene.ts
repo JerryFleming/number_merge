@@ -162,10 +162,11 @@ export class BoardScene extends Phaser.Scene {
     );
 
     this.sfx.setMuted(this.loadMuted());
-    // Both header buttons sit on the score's line: restart at the left edge,
-    // mute at the right edge, balanced around the centered score.
+    // The New, tutorial, and sound controls flank the bottom power-up row:
+    // New to the left of the power-ups, tutorial + sound to their right.
+    // Positions are set in layoutControls() once the power bar is laid out.
     this.muteButton = this.add
-      .text(this.scale.width - 12, SCORE_H * 0.80, this.sfx.muted ? "🔇" : "🔊", {
+      .text(0, 0, this.sfx.muted ? "🔇" : "🔊", {
         fontSize: "26px",
       })
       .setOrigin(1, 0.5)
@@ -183,11 +184,9 @@ export class BoardScene extends Phaser.Scene {
 
     // Help button: a drawn graduation-cap ("how to play") icon that replays the
     // tutorial. Drawn vector so it reads clearly and renders the same on every
-    // device (an emoji did not). Sits just left of mute.
+    // device (an emoji did not). Sits to the right of the power-ups, left of mute.
     this.helpButton = this.makeTutorialButton();
-    this.helpButton
-      .setPosition(this.helpButtonX(), SCORE_H * 0.8)
-      .setDepth(500);
+    this.helpButton.setDepth(500);
     this.helpButton.on("pointerdown", (
       _p: Phaser.Input.Pointer,
       _x: number,
@@ -207,7 +206,7 @@ export class BoardScene extends Phaser.Scene {
 
     // New-game button: a drawn circular-arrow (refresh) vector icon plus a
     // "New" label, so it renders at a consistent size across devices (an emoji
-    // glyph does not). Origin is the container's own (0,0); laid out at x=12.
+    // glyph does not). Sits to the left of the power-ups; laid out below.
     this.restartButton = this.makeNewGameButton();
     this.restartButton.setDepth(500); // hit area is set inside makeNewGameButton
     this.restartButton.on("pointerdown", (
@@ -226,7 +225,8 @@ export class BoardScene extends Phaser.Scene {
       });
       this.restart();
     });
-    this.restartButton.setPosition(12, SCORE_H * 0.80);
+
+    this.layoutControls();
 
     this.input.on("pointerdown", this.onPointerDown, this);
     this.input.on("pointermove", this.onPointerMove, this);
@@ -289,10 +289,8 @@ export class BoardScene extends Phaser.Scene {
     this.updateBoardMask();
     this.layoutTitleRow();
     this.scoreText?.setX(this.scale.width / 2);
-    this.muteButton?.setPosition(this.scale.width - 12, SCORE_H * 0.80);
-    this.helpButton?.setPosition(this.helpButtonX(), SCORE_H * 0.80);
-    this.restartButton?.setPosition(12, SCORE_H * 0.80);
     this.powerBar?.layout();
+    this.layoutControls();
     this.gameOver?.layout();
     this.tutorial?.setGeometry(this.origin, this.size);
     this.redraw();
@@ -537,7 +535,7 @@ export class BoardScene extends Phaser.Scene {
 
     const labelX = r * 2 + 8;
     const label = this.add
-      .text(labelX, 0, "New Game", {
+      .text(labelX, 0, "New", {
         fontFamily: "system-ui, sans-serif",
         fontSize: "16px",
         color: COLORS.text,
@@ -661,13 +659,23 @@ export class BoardScene extends Phaser.Scene {
 
   // --- tutorial -----------------------------------------------------------
 
-  /** Center x for the tutorial (help) button: just left of the mute icon. The
-   * icon is drawn centered on its container with a ~22px half-width, so place
-   * its center a half-width in from where its right edge should sit. */
-  private helpButtonX(): number {
+  /** Position the New button to the left of the power-up row and the tutorial +
+   * sound buttons to its right, all vertically centered on that row. Call after
+   * the power bar has been laid out (its bounds drive the placement). */
+  private layoutControls(): void {
+    if (!this.powerBar) return;
+    const cy = this.powerBar.rowY;
+
+    // New button (left-anchored content): sit it in the left slot, its icon a
+    // small margin in from the power-up group's left edge.
+    this.restartButton?.setPosition(12, cy);
+
+    // Mute at the far right edge; tutorial cap just inside it. Both centered
+    // on the row (mute origin is right/middle; the cap is centered on itself).
+    const rightEdge = this.scale.width - 14;
+    this.muteButton?.setPosition(rightEdge, cy);
     const muteW = this.muteButton?.width ?? 26;
-    const rightEdge = this.scale.width - 12 - muteW - 16;
-    return rightEdge - 22; // cap half-width
+    this.helpButton?.setPosition(rightEdge - muteW - 16 - 22, cy);
   }
 
   /** Replay the how-to-play tutorial on demand (the header's help button).

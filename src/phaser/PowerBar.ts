@@ -24,6 +24,26 @@ interface Button {
 export class PowerBar {
   private buttons: Button[] = [];
   private active: PowerUp | null = null;
+  /** Geometry of the laid-out button group, so the scene can flank it with the
+   * New / tutorial / sound buttons on the same row. */
+  private _bounds = { left: 0, right: 0, cy: 0, bh: 0 };
+
+  /** Left edge x of the power-up group (for the New button to its left). */
+  get leftX(): number {
+    return this._bounds.left;
+  }
+  /** Right edge x of the power-up group (for the tutorial/sound buttons). */
+  get rightX(): number {
+    return this._bounds.right;
+  }
+  /** Vertical center of the power-up row (so flanking buttons line up). */
+  get rowY(): number {
+    return this._bounds.cy;
+  }
+  /** Height of a power-up button (sizing reference for flanking buttons). */
+  get buttonH(): number {
+    return this._bounds.bh;
+  }
 
   constructor(
     private scene: Phaser.Scene,
@@ -131,18 +151,26 @@ export class PowerBar {
     const n = this.buttons.length;
     const pad = 20; // gap between the round buttons
     const bh = POWER_BAR_H - pad * 2;
+    // Reserve side slots on the row for the flanking buttons the scene draws:
+    // the "New" button on the left, the tutorial + sound icons on the right.
+    // The right slot holds two icons, so give it a bit more room.
+    const sideL = 84;
+    const sideR = 96;
     // Round buttons: width tracks height so each column is the circle's box;
-    // never let it exceed the space available across the row.
-    const available = (w - pad * (n + 1)) / n;
+    // never let it exceed the space available across the central (flanked) row.
+    const inner = w - sideL - sideR;
+    const available = (inner - pad * (n + 1)) / n;
     const bw = Math.min(bh, available);
     // Lift the bar above the iOS home indicator and the mobile browser's
     // bottom URL bar (safe-area inset + a fixed margin).
     const y = h - POWER_BAR_H + pad - bottomInset();
     const groupW = bw * n + pad * (n - 1);
-    const startX = (w - groupW) / 2;
+    // Center the power-up group within the span between the two side slots.
+    const startX = sideL + (inner - groupW) / 2;
+    const cy = y + bh / 2;
+    this._bounds = { left: startX, right: startX + groupW, cy, bh };
     this.buttons.forEach((btn, i) => {
       const cx = startX + i * (bw + pad) + bw / 2;
-      const cy = y + bh / 2;
       btn.bw = bw;
       btn.bh = bh;
       btn.root.setPosition(cx, cy);

@@ -14,9 +14,11 @@ import {
 import { COLORS, tierColor, tierLabel, tierTextColor } from "./theme";
 import { PowerBar } from "./PowerBar";
 import { GameOverOverlay } from "./GameOver";
+import { Tutorial } from "./Tutorial";
 import { PhaserSfx, AUDIO_ASSETS, type Sfx } from "./sound";
 import { serialize, deserialize } from "../core/persistence";
 import { IMAGE_ASSETS, TEX } from "./assets";
+import type { TutorialStep } from "../core/tutorial";
 
 /**
  * Renders the board from the Game's state, drives the retractable drag, and
@@ -38,6 +40,7 @@ export class BoardScene extends Phaser.Scene {
 
   private powerBar!: PowerBar;
   private gameOver!: GameOverOverlay;
+  private tutorial!: Tutorial;
   private sfx!: Sfx;
   private muteButton!: Phaser.GameObjects.Text;
   private restartButton!: Phaser.GameObjects.Container;
@@ -63,6 +66,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   private static readonly SAVE_KEY = "nm_save";
+  private static readonly TUTORIAL_KEY = "nm_tutorial_done";
 
   preload(): void {
     for (const [key, url] of IMAGE_ASSETS) this.load.image(key, url);
@@ -114,6 +118,11 @@ export class BoardScene extends Phaser.Scene {
 
     this.powerBar = new PowerBar(this, (p) => this.onPowerSelected(p));
     this.gameOver = new GameOverOverlay(this, () => this.restart());
+    this.tutorial = new Tutorial(
+      this,
+      () => this.onTutorialFinished(),
+      (step) => this.onTutorialStep(step),
+    );
 
     this.sfx.setMuted(this.loadMuted());
     // Both header buttons sit on the score's line: restart at the left edge,
@@ -168,9 +177,17 @@ export class BoardScene extends Phaser.Scene {
     // A resumed game already holds its record tier: crown it quietly (no pop).
     this.crownedTier = this.model.reachedTier;
 
-    // Fresh game (no save resumed): drop the board in under gravity.
-    if (this.resumedOnLoad) this.redraw();
-    else this.animateNewGame();
+    if (this.resumedOnLoad) {
+      // A resumed game: a returning player, so never the tutorial.
+      this.redraw();
+    } else if (this.shouldRunTutorial()) {
+      // Brand-new player (no save, tutorial not yet seen): run the intro.
+      this.tutorial.setGeometry(this.origin, this.size);
+      this.tutorial.start();
+    } else {
+      // Fresh game for a returning player: drop the board in under gravity.
+      this.animateNewGame();
+    }
   }
 
   private computeLayout(): void {
@@ -211,6 +228,7 @@ export class BoardScene extends Phaser.Scene {
     this.restartButton?.setPosition(12, SCORE_H * 0.80);
     this.powerBar?.layout();
     this.gameOver?.layout();
+    this.tutorial?.setGeometry(this.origin, this.size);
     this.redraw();
   }
 
@@ -225,6 +243,13 @@ export class BoardScene extends Phaser.Scene {
     if (this.model.isOver) return;
     const pos = this.pointerToPos(pointer);
     if (!pos) return;
+
+    // During a drag-step tutorial, only the demo cells are interactive. A tap
+    // elsewhere just nudges the demo (no drag starts).
+    if (this.tutorial.isActive && !this.tutorialAllows(pos)) {
+      if (this.tutorialIsDragStep()) this.tutorial.flashWrong();
+      return;
+    }
 
     // Power-up targeting takes priority over starting a drag.
     if (this.model.targeting) {
@@ -241,6 +266,8 @@ export class BoardScene extends Phaser.Scene {
     if (!this.dragging || this.model.targeting) return;
     const pos = this.pointerToPos(pointer);
     if (!pos) return;
+    // Keep the drag confined to the demo cells during a drag-step tutorial.
+    if (this.tutorial.isActive && !this.tutorialAllows(pos)) return;
     const before = this.model.path.length;
     this.model.pointer(pos);
     if (this.model.path.length !== before) {
@@ -261,29 +288,48 @@ export class BoardScene extends Phaser.Scene {
       return { pos: p, tier: c ? c.tier : 1 };
     });
     const result = this.model.commit();
+    const inTutorial = this.tutorial.isActive;
     if (result) {
       this.sfx.play("merge");
-      this.save();
+      if (!inTutorial) this.save();
       // Phase 1: consumed blocks fly into the landed cell. Phase 2 (settle +
       // result pop) runs after they arrive.
       this.animateMergeCollect(chain, result.landed, () => {
         this.animateSettle();
         this.animateMerge(result.restingPos);
-        this.checkGameOver();
+        // A completed demo merge advances the tutorial (after the pop reads);
+        // outside the tutorial, check for game over as usual.
+        if (inTutorial) this.time.delayedCall(420, () => this.tutorial.advance());
+        else this.checkGameOver();
       });
-      this.scoreText.setText(this.model.score.toString());
+      this.scoreText.setText(inTutorial ? "0" : this.model.score.toString());
       return;
     }
-    if (chainLength > 0) this.sfx.play("invalid");
+    if (chainLength > 0) {
+      this.sfx.play("invalid");
+      if (inTutorial && this.tutorialIsDragStep()) this.tutorial.flashWrong();
+    }
     this.redraw();
-    this.scoreText.setText(this.model.score.toString());
-    this.checkGameOver();
+    if (!inTutorial) {
+      this.scoreText.setText(this.model.score.toString());
+      this.checkGameOver();
+    }
   }
 
   // --- power-ups ----------------------------------------------------------
 
   private onPowerSelected(power: "hammer" | "magnet" | "swap"): void {
     if (this.model.isOver) return;
+    // On the tutorial's power-up step, tapping any power-up completes it (and
+    // we don't actually arm targeting over the scripted demo board).
+    if (this.tutorial.isActive) {
+      if (this.tutorial.currentStep?.completeOn === "powerup") {
+        this.sfx.play("select");
+        this.powerBar.clearActive();
+        this.tutorial.advance();
+      }
+      return;
+    }
     if (this.model.targeting === power) {
       this.model.cancelTargeting();
     } else {
@@ -452,6 +498,59 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  // --- tutorial -----------------------------------------------------------
+
+  /** Is `pos` one of the cells the current tutorial step lets the player use? */
+  private tutorialAllows(pos: Pos): boolean {
+    return this.tutorial.allowedCells.some(
+      (c) => c.col === pos.col && c.row === pos.row,
+    );
+  }
+
+  /** True while the active tutorial step is demonstrated by a board drag (as
+   * opposed to the power-up step, which has no demo cells). */
+  private tutorialIsDragStep(): boolean {
+    return (this.tutorial.currentStep?.demo.length ?? 0) >= 2;
+  }
+
+  /** A brand-new player: no persisted tutorial-done flag. (resumeIfSaved has
+   * already ruled out a saved board before this is consulted.) */
+  private shouldRunTutorial(): boolean {
+    try {
+      return localStorage.getItem(BoardScene.TUTORIAL_KEY) !== "1";
+    } catch {
+      // No storage (private mode): show it once this session rather than never.
+      return true;
+    }
+  }
+
+  private markTutorialDone(): void {
+    try {
+      localStorage.setItem(BoardScene.TUTORIAL_KEY, "1");
+    } catch {
+      /* storage unavailable — the tutorial may reappear next load; acceptable */
+    }
+  }
+
+  /** Load the scripted board for a tutorial step and show it (no drop anim, so
+   * the demo cells sit still under the hand). */
+  private onTutorialStep(step: TutorialStep): void {
+    this.model.loadGrid(step.grid);
+    this.crownedTier = this.model.reachedTier;
+    this.redraw();
+  }
+
+  /** Tutorial finished (or skipped): persist the flag and start a real game. */
+  private onTutorialFinished(): void {
+    this.markTutorialDone();
+    this.model.startNew();
+    this.crownedTier = this.model.reachedTier;
+    this.scoreText.setText("0");
+    this.powerBar.setCounts(this.model.useCounts);
+    this.save();
+    this.animateNewGame();
+  }
+
   // --- persistence --------------------------------------------------------
 
   /** Load a saved board and restore it. Returns true if a save was resumed. */
@@ -558,7 +657,12 @@ export class BoardScene extends Phaser.Scene {
           // Crown the block(s) at the highest tier reached so far (the
           // original's "block-add-crown-icon"). It lives inside cellLayer, so it
           // rides the same fall offset and tracks the block through gravity.
-          if (c.tier === this.model.reachedTier && c.tier > 1) {
+          // Suppressed during the tutorial so the scripted demo stays clean.
+          if (
+            !this.tutorial?.isActive &&
+            c.tier === this.model.reachedTier &&
+            c.tier > 1
+          ) {
             this.addCrown(center.x, center.y - s / 2, s);
           }
         }

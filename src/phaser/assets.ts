@@ -5,6 +5,7 @@ import magnetUrl from "../assets/pu-magnet.png";
 import swapUrl from "../assets/pu-swap.png";
 import gameIconUrl from "../assets/game-icon.png";
 import crownUrl from "../assets/crown.png";
+import handUrl from "../assets/hand.png";
 
 export const TEX = {
   puHammer: "pu-hammer",
@@ -14,6 +15,8 @@ export const TEX = {
   // The original's "block-add-crown-icon" sprite, marking the highest-tier
   // block reached so far.
   crown: "crown",
+  // The original's "tutorial-hand" pointing-hand cursor for the first-run demo.
+  hand: "hand",
 } as const;
 
 /** [textureKey, url] pairs to feed this.load.image() in preload(). */
@@ -23,6 +26,7 @@ export const IMAGE_ASSETS: ReadonlyArray<readonly [string, string]> = [
   [TEX.puSwap, swapUrl],
   [TEX.gameIcon, gameIconUrl],
   [TEX.crown, crownUrl],
+  [TEX.hand, handUrl],
 ];
 
 /** The power-up texture key for a given power. */

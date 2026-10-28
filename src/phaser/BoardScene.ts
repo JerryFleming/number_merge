@@ -36,6 +36,7 @@ export class BoardScene extends Phaser.Scene {
   private lineGfx!: Phaser.GameObjects.Graphics;
   private boardMaskG!: Phaser.GameObjects.Graphics;
   private titleText!: Phaser.GameObjects.Text;
+  private versionText!: Phaser.GameObjects.Text;
   private gameIcon!: Phaser.GameObjects.Image;
   private scoreText!: Phaser.GameObjects.Text;
   private dragging = false;
@@ -140,6 +141,13 @@ export class BoardScene extends Phaser.Scene {
         fontSize: "20px",
         color: "#ffd166",
         fontStyle: "bold",
+      })
+      .setOrigin(0, 0.5);
+    this.versionText = this.add
+      .text(0, SCORE_H * 0.3, __GIT_HASH__, {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "11px",
+        color: "#8a8fa3",
       })
       .setOrigin(0, 0.5);
     this.layoutTitleRow();
@@ -273,7 +281,8 @@ export class BoardScene extends Phaser.Scene {
     );
   }
 
-  /** Center the game-icon + title name as one row on the title line. */
+  /** Center the game-icon + title name as one row on the title line; the
+   * build hash trails the name but is left out of the centering. */
   private layoutTitleRow(): void {
     if (!this.gameIcon || !this.titleText) return;
     const gap = 8;
@@ -282,6 +291,7 @@ export class BoardScene extends Phaser.Scene {
     const left = (this.scale.width - rowW) / 2;
     this.gameIcon.setX(left + iconW / 2);
     this.titleText.setX(left + iconW + gap);
+    this.versionText?.setX(left + rowW + 6);
   }
 
   private onResize(): void {

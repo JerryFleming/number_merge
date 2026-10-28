@@ -1,7 +1,21 @@
+import { execSync } from "node:child_process";
 import { defineConfig } from "vite";
+
+// Short commit hash shown after the title, so a deployed build is easy to
+// identify. Read each time the config loads (every build / dev start).
+function gitHash(): string {
+  try {
+    return execSync("git rev-parse --short=5 HEAD").toString().trim();
+  } catch {
+    return "dev";
+  }
+}
 
 export default defineConfig({
   base: "./",
+  define: {
+    __GIT_HASH__: JSON.stringify(gitHash()),
+  },
   build: {
     target: "es2020",
     // The Phaser vendor chunk is legitimately ~1.5MB (the engine); raise the

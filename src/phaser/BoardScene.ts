@@ -46,6 +46,8 @@ export class BoardScene extends Phaser.Scene {
   private tutorial!: Tutorial;
   private sfx!: Sfx;
   private muteButton!: Phaser.GameObjects.Text;
+  /** Content width of the New button (icon through label), for layout. */
+  private newButtonW = 56;
   private helpButton!: Phaser.GameObjects.Container;
   private restartButton!: Phaser.GameObjects.Container;
   private resumedOnLoad = false;
@@ -214,7 +216,7 @@ export class BoardScene extends Phaser.Scene {
 
     // New-game button: a drawn circular-arrow (refresh) vector icon plus a
     // "New" label, so it renders at a consistent size across devices (an emoji
-    // glyph does not). Sits to the left of the power-ups; laid out below.
+    // glyph does not). Sits just left of the power-ups; laid out below.
     this.restartButton = this.makeNewGameButton();
     this.restartButton.setDepth(500); // hit area is set inside makeNewGameButton
     this.restartButton.on("pointerdown", (
@@ -556,6 +558,7 @@ export class BoardScene extends Phaser.Scene {
     const container = this.add.container(0, 0, [icon, label]);
     // Hit area spans the icon through the end of the label, full header height.
     const width = labelX + label.width;
+    this.newButtonW = width;
     container.setInteractive(
       new Phaser.Geom.Rectangle(-4, -SCORE_H * 0.33, width + 8, SCORE_H * 0.66),
       Phaser.Geom.Rectangle.Contains,
@@ -675,18 +678,22 @@ export class BoardScene extends Phaser.Scene {
   private layoutControls(): void {
     if (!this.powerBar) return;
     const cy = this.powerBar.rowY;
+    // Controls hug the power-up group (not the screen edges), separated from
+    // it by a clear fixed gap on each side.
+    const gap = 24;
 
-    // New button (left-anchored content): sit it in the left slot, its icon a
-    // small margin in from the power-up group's left edge.
-    this.restartButton?.setPosition(12, cy);
+    // New button: left-anchored content spanning [0, width]; end it `gap`
+    // short of the power-up group's left edge.
+    this.restartButton?.setPosition(this.powerBar.leftX - gap - this.newButtonW, cy);
 
-    // Mute at the far right edge; tutorial cap just inside it. Both centered
-    // on the row (mute origin is right/middle; the cap is centered on itself).
-    const rightEdge = this.scale.width - 14;
-    this.muteButton?.setPosition(rightEdge, cy);
+    // Tutorial cap (centered on itself, half-width 22) just right of the
+    // power-ups, then mute (right/middle origin) after it.
+    const helpX = this.powerBar.rightX + gap + 22;
+    this.helpButton?.setPosition(helpX, cy);
     const muteW = this.muteButton?.width ?? 26;
-    this.helpButton?.setPosition(rightEdge - muteW - 16 - 22, cy);
+    this.muteButton?.setPosition(helpX + 22 + 16 + muteW, cy);
   }
+
 
   /** Replay the how-to-play tutorial on demand (the header's help button).
    * Resets any in-progress targeting/drag and runs from step 1; the normal

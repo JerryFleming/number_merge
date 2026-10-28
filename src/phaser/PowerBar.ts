@@ -165,8 +165,10 @@ export class PowerBar {
     // bottom URL bar (safe-area inset + a fixed margin).
     const y = h - POWER_BAR_H + pad - bottomInset();
     const groupW = bw * n + pad * (n - 1);
-    // Center the power-up group within the span between the two side slots.
-    const startX = sideL + (inner - groupW) / 2;
+    // Center the group, nudged left by half the difference between the side
+    // clusters (tutorial + sound is wider than New) so the whole row reads
+    // as centered.
+    const startX = (w - groupW) / 2 - 15;
     const cy = y + bh / 2;
     this._bounds = { left: startX, right: startX + groupW, cy, bh };
     this.buttons.forEach((btn, i) => {

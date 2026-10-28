@@ -678,21 +678,25 @@ export class BoardScene extends Phaser.Scene {
   private layoutControls(): void {
     if (!this.powerBar) return;
     const cy = this.powerBar.rowY;
-    // Controls hug the power-up group (not the screen edges), separated from
-    // it by a clear fixed gap on each side.
+    // Controls sit a clear fixed gap beside the power-up group, or out at the
+    // board's edges when those are further out (wide screens), so the row
+    // spans the board instead of bunching in the middle.
     const gap = 24;
+    const boardL = this.origin.x;
+    const boardR = this.origin.x + COLS * this.size;
 
-    // New button: left-anchored content spanning [0, width]; end it `gap`
-    // short of the power-up group's left edge.
-    this.restartButton?.setPosition(this.powerBar.leftX - gap - this.newButtonW, cy);
+    // New button: left-anchored content spanning [0, newButtonW].
+    const newX = Math.min(this.powerBar.leftX - gap - this.newButtonW, boardL);
+    this.restartButton?.setPosition(newX, cy);
 
-    // Tutorial cap (centered on itself, half-width 22) just right of the
-    // power-ups, then mute (right/middle origin) after it.
-    const helpX = this.powerBar.rightX + gap + 22;
-    this.helpButton?.setPosition(helpX, cy);
+    // Mute (right/middle origin) on the outside, tutorial cap (centered on
+    // itself, half-width 22) just inside it.
     const muteW = this.muteButton?.width ?? 26;
-    this.muteButton?.setPosition(helpX + 22 + 16 + muteW, cy);
+    const muteX = Math.max(this.powerBar.rightX + gap + 22 + 22 + 16 + muteW, boardR);
+    this.muteButton?.setPosition(muteX, cy);
+    this.helpButton?.setPosition(muteX - muteW - 16 - 22, cy);
   }
+
 
 
   /** Replay the how-to-play tutorial on demand (the header's help button).

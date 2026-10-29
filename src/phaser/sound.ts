@@ -84,7 +84,26 @@ export class PhaserSfx implements Sfx {
   /** Rotating index into MERGE_KEYS; advances one step per merge, wraps. */
   private mergeIndex = 0;
 
-  constructor(private scene: Phaser.Scene) {}
+  constructor(private scene: Phaser.Scene) {
+    // iOS only unlocks audio on gesture-*ending* events (touchend/click), not on
+    // touchstart, which is where Phaser's pointerdown fires. Listen for those
+    // natively (capture, so nothing upstream can swallow them) until the
+    // context is running, so sound is on from the first tap.
+    const events = ["touchend", "pointerup", "click", "keydown"] as const;
+    const onGesture = (): void => {
+      this.unlock();
+      if (this.context?.state === "running") {
+        for (const e of events) window.removeEventListener(e, onGesture, true);
+      }
+    };
+    for (const e of events) window.addEventListener(e, onGesture, true);
+  }
+
+  private get context(): AudioContext | undefined {
+    return (this.scene.sound as Phaser.Sound.BaseSoundManager & {
+      context?: AudioContext;
+    }).context;
+  }
 
   get muted(): boolean {
     return this._muted;
@@ -95,12 +114,20 @@ export class PhaserSfx implements Sfx {
   }
 
   unlock(): void {
-    const mgr = this.scene.sound as Phaser.Sound.BaseSoundManager & {
-      context?: AudioContext;
-    };
-    // Web Audio backends expose a suspended context until a user gesture.
-    if (mgr.context && mgr.context.state === "suspended") {
-      void mgr.context.resume();
+    const ctx = this.context;
+    // Web Audio backends expose a suspended context until a user gesture;
+    // iOS also reports a non-standard "interrupted" state.
+    if (!ctx || ctx.state === "running") return;
+    void ctx.resume();
+    // iOS also wants a source started inside the gesture: play one silent
+    // sample so the output route actually opens.
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, 22050);
+      src.connect(ctx.destination);
+      src.start(0);
+    } catch {
+      /* unavailable — resume() alone is the best we can do */
     }
   }
 

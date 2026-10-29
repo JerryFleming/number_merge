@@ -176,12 +176,16 @@ export class BoardScene extends Phaser.Scene {
     // New to the left of the power-ups, tutorial + sound to their right.
     // Positions are set in layoutControls() once the power bar is laid out.
     this.muteButton = this.add
-      .text(0, 0, this.sfx.muted ? "🔇" : "🔊", {
+      .text(0, 0, "", {
         fontSize: "26px",
       })
       .setOrigin(1, 0.5)
       .setInteractive({ useHandCursor: true })
       .setDepth(500);
+    this.updateMuteIcon();
+    // iOS only unlocks audio on a tap (not a drag), so the icon shows muted
+    // until the browser actually lets sound through.
+    this.sfx.onLockChange(() => this.updateMuteIcon());
     this.muteButton.on("pointerdown", (
       _p: Phaser.Input.Pointer,
       _x: number,
@@ -651,15 +655,25 @@ export class BoardScene extends Phaser.Scene {
 
   private toggleMute(): void {
     this.sfx.unlock();
+    // Showing 🔇 only because the browser blocks audio: this tap unlocks it
+    // (on touchend), so treat it as "unmute" rather than toggling to muted.
+    if (this.sfx.locked && !this.sfx.muted) {
+      this.sfx.play("select"); // queued; sounds once the context resumes
+      return;
+    }
     const muted = !this.sfx.muted;
     this.sfx.setMuted(muted);
-    this.muteButton.setText(muted ? "🔇" : "🔊");
+    this.updateMuteIcon();
     try {
       localStorage.setItem("nm_muted", muted ? "1" : "0");
     } catch {
       /* storage may be unavailable (private mode, blocked) — ignore */
     }
     if (!muted) this.sfx.play("select"); // audible confirmation on unmute
+  }
+
+  private updateMuteIcon(): void {
+    this.muteButton.setText(this.sfx.muted || this.sfx.locked ? "🔇" : "🔊");
   }
 
   private loadMuted(): boolean {

@@ -76,6 +76,10 @@ export interface Sfx {
   unlock(): void;
   setMuted(muted: boolean): void;
   readonly muted: boolean;
+  /** True while the browser still blocks audio (no unlocking gesture yet). */
+  readonly locked: boolean;
+  /** Called whenever `locked` may have changed. */
+  onLockChange(cb: () => void): void;
 }
 
 /** Plays the original clips via Phaser's sound manager. */
@@ -97,6 +101,15 @@ export class PhaserSfx implements Sfx {
       }
     };
     for (const e of events) window.addEventListener(e, onGesture, true);
+  }
+
+  get locked(): boolean {
+    const ctx = this.context;
+    return !!ctx && ctx.state !== "running";
+  }
+
+  onLockChange(cb: () => void): void {
+    this.context?.addEventListener("statechange", cb);
   }
 
   private get context(): AudioContext | undefined {

@@ -155,7 +155,8 @@ export class BoardScene extends Phaser.Scene {
     this.layoutTitleRow();
 
     this.scoreText = this.add
-      .text(this.scale.width / 2, SCORE_H * 0.80, "0", {
+      // Seed from the model so a resumed game shows its saved score at once.
+      .text(this.scale.width / 2, SCORE_H * 0.80, this.model.score.toString(), {
         fontFamily: "system-ui, sans-serif",
         fontSize: "26px",
         color: COLORS.text,

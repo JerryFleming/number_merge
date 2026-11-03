@@ -12,7 +12,7 @@ export const SCORE_H = 100;
  * safe-area inset. Mobile browsers' dynamic bottom URL bar is NOT reported by
  * `env(safe-area-inset-bottom)`, so without this the bar can sit under it.
  */
-export const BOTTOM_MARGIN = 28;
+export const BOTTOM_MARGIN = 44;
 
 export interface Point {
   x: number;

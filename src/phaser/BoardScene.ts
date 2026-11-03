@@ -19,7 +19,7 @@ import { GameOverOverlay } from "./GameOver";
 import { Tutorial } from "./Tutorial";
 import { PhaserSfx, AUDIO_ASSETS, type Sfx } from "./sound";
 import { serialize, deserialize } from "../core/persistence";
-import { IMAGE_ASSETS, TEX } from "./assets";
+import { IMAGE_ASSETS, TEX, powerTexture } from "./assets";
 import type { TutorialStep } from "../core/tutorial";
 
 /**
@@ -249,6 +249,7 @@ export class BoardScene extends Phaser.Scene {
     this.scale.on("resize", this.onResize, this);
 
     this.powerBar.setCounts(this.model.useCounts); // show resumed counts, if any
+    this.powerBar.setAffordable((p) => this.model.canAfford(p));
 
     // A resumed game already holds its record tier: crown one block at that
     // tier quietly (no pop). A fresh game has reachedTier 1 → no crown.
@@ -419,12 +420,12 @@ export class BoardScene extends Phaser.Scene {
         this.animateMerge(result.restingPos);
         this.checkGameOver();
       });
-      this.scoreText.setText(this.model.score.toString());
+      this.syncScore();
       return;
     }
     if (chainLength > 0) this.sfx.play("invalid");
     this.redraw();
-    this.scoreText.setText(this.model.score.toString());
+    this.syncScore();
     this.checkGameOver();
   }
 
@@ -444,8 +445,11 @@ export class BoardScene extends Phaser.Scene {
     }
     if (this.model.targeting === power) {
       this.model.cancelTargeting();
-    } else {
-      this.model.enterTargeting(power);
+    } else if (!this.model.enterTargeting(power)) {
+      // The score can't cover this power-up's cost: refuse to arm it.
+      this.sfx.play("invalid");
+      this.powerBar.clearActive();
+      return;
     }
     this.swapFirst = null;
     this.redraw();
@@ -457,7 +461,7 @@ export class BoardScene extends Phaser.Scene {
 
     if (power === "hammer") {
       const hit = cellAt(this.model.grid, pos);
-      this.model.useHammer(pos);
+      if (!this.model.useHammer(pos)) return;
       this.sfx.play("hammer");
       this.powerBar.clearActive();
       // A hammer swings down and knocks the struck block, then the board falls.
@@ -501,7 +505,7 @@ export class BoardScene extends Phaser.Scene {
     const ca = cellAt(this.model.grid, a);
     const cb = cellAt(this.model.grid, b);
     this.swapFirst = null;
-    this.model.useSwap(a, b);
+    if (!this.model.useSwap(a, b)) return;
     this.sfx.play("swap");
     this.powerBar.clearActive();
     // Slide the two blocks past each other to their new cells.
@@ -510,9 +514,15 @@ export class BoardScene extends Phaser.Scene {
     });
   }
 
+  /** Show the current score and dim power-ups it can no longer pay for. */
+  private syncScore(): void {
+    this.scoreText.setText(this.model.score.toString());
+    this.powerBar.setAffordable((p) => this.model.canAfford(p));
+  }
+
   /** Shared post-power-up bookkeeping. */
   private finishPowerUp(): void {
-    this.scoreText.setText(this.model.score.toString());
+    this.syncScore();
     this.powerBar.setCounts(this.model.useCounts);
     this.save();
     this.checkGameOver();
@@ -634,7 +644,7 @@ export class BoardScene extends Phaser.Scene {
     this.syncCrownedBlock();
     this.gameOver.hide();
     this.swapFirst = null;
-    this.scoreText.setText("0");
+    this.syncScore();
     this.powerBar.setCounts(this.model.useCounts); // reset badges to 0
     this.save(); // persist the fresh board so a reload resumes the new game
     this.animateNewGame(); // drop every block in under gravity
@@ -797,7 +807,7 @@ export class BoardScene extends Phaser.Scene {
       this.model.restore(snap);
       this.crownedTier = this.model.reachedTier;
       this.syncCrownedBlock();
-      this.scoreText.setText(this.model.score.toString());
+      this.syncScore();
       this.powerBar.setCounts(this.model.useCounts);
       this.save();
       this.redraw();
@@ -808,7 +818,7 @@ export class BoardScene extends Phaser.Scene {
     this.model.startNew();
     this.crownedTier = this.model.reachedTier;
     this.crownedBlock = null;
-    this.scoreText.setText("0");
+    this.syncScore();
     this.powerBar.setCounts(this.model.useCounts);
     this.save();
     this.animateNewGame();
@@ -1093,27 +1103,10 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
-  /** Draw a simple cartoon hammer (head + handle) centered at (0,0), pointing
-   * down-left so it reads as cocked back before a strike. */
-  private makeHammer(size: number): Phaser.GameObjects.Container {
-    const g = this.add.graphics();
-    const headW = size * 0.7;
-    const headH = size * 0.42;
-    const handleW = size * 0.16;
-    const handleL = size * 0.75;
-    // Handle (brown), extending down from the head.
-    g.fillStyle(0x8a5a2b, 1);
-    g.fillRoundedRect(-handleW / 2, 0, handleW, handleL, handleW * 0.4);
-    // Head (grey metal) sitting on top of the handle.
-    g.fillStyle(0x9aa3b2, 1);
-    g.fillRoundedRect(-headW / 2, -headH, headW, headH, headH * 0.22);
-    g.fillStyle(0xc7cdd8, 1);
-    g.fillRoundedRect(-headW / 2, -headH, headW * 0.28, headH, headH * 0.22);
-    return this.add.container(0, 0, [g]);
-  }
-
-  /** Hammer: a hammer swings down and knocks the struck block (which recoils
-   * and shatters into debris), then the board settles via onDone. */
+  /** Hammer: a wind-up, a fast downswing pivoting on the handle grip, then
+   * the struck block flashes, squashes and shatters into falling shards with a
+   * shockwave and a light screen shake. The board starts settling (onDone)
+   * while the shards are still flying, so the strike never stalls play. */
   private animateHammer(
     target: Pos,
     tier: number | null,
@@ -1124,70 +1117,188 @@ export class BoardScene extends Phaser.Scene {
     // is correct for the whole strike and there is no stale->fresh jump (which
     // showed up as a full-board flicker when the temp layer was torn down).
     this.beginSettleFrozen();
-    const c = cellCenter(target, this.origin, this.size);
-    const s = this.size - this.size * 0.06 * 2;
-    const layer = this.add.container(0, 0).setDepth(940);
+    const size = this.size;
+    const c = cellCenter(target, this.origin, size);
+    const s = size - size * 0.06 * 2;
+    const r = s * 0.18;
+    const color = tier !== null ? tierColor(tier) : COLORS.line;
+    // Block + effects sit under the hammer; each layer cleans itself up.
+    const fx = this.add.container(0, 0).setDepth(940);
+    const swing = this.add.container(0, 0).setDepth(945);
 
-    // Temporary copy of the struck block (the real one is already removed).
+    // Temporary copy of the struck block (the real one is already removed),
+    // with a white overlay used for the impact flash.
     let block: Phaser.GameObjects.Container | null = null;
+    let flash: Phaser.GameObjects.Graphics | null = null;
     if (tier !== null) {
       const bg = this.add.graphics();
-      bg.fillStyle(tierColor(tier), 1);
-      bg.fillRoundedRect(-s / 2, -s / 2, s, s, s * 0.18);
+      bg.fillStyle(color, 1);
+      bg.fillRoundedRect(-s / 2, -s / 2, s, s, r);
       const t = this.add
         .text(0, 0, tierLabel(tier), {
           fontFamily: "system-ui, sans-serif",
-          fontSize: `${Math.floor(this.size * 0.34)}px`,
+          fontSize: `${Math.floor(size * 0.34)}px`,
           color: COLORS.text,
           fontStyle: "bold",
         })
         .setOrigin(0.5);
-      block = this.add.container(c.x, c.y, [bg, t]);
-      layer.add(block);
+      flash = this.add.graphics();
+      flash.fillStyle(0xffffff, 1);
+      flash.fillRoundedRect(-s / 2, -s / 2, s, s, r);
+      flash.setAlpha(0);
+      block = this.add.container(c.x, c.y, [bg, t, flash]);
+      fx.add(block);
     }
 
-    // Hammer cocked back above-right of the cell, rotated up.
-    const hammer = this.makeHammer(this.size);
-    hammer.setPosition(c.x + this.size * 0.55, c.y - this.size * 0.75);
-    hammer.setRotation(Phaser.Math.DegToRad(-70));
-    layer.add(hammer);
+    // The power-up icon, with its origin at the bottom of the handle so it
+    // rotates around the grip like a real swing. In the source image the head
+    // points up-right (~-57°) from the grip, ~0.64 image-widths away.
+    const imgSize = size * 0.95;
+    const reach = imgSize * 0.64;
+    const hammer = this.add
+      .image(0, 0, powerTexture("hammer"))
+      .setOrigin(0.25, 0.92);
+    hammer.setScale(imgSize / Math.max(hammer.width, hammer.height));
+    // Grip sits right of the cell, a little below its center, so at impact
+    // the head comes down onto the cell from above-right.
+    // Head direction at impact (screen degrees). Kept negative so the swing from
+    // the wind-up (-48°) turns counter-clockwise over the top, not underneath.
+    const impactAngle = -160;
+    const grip = {
+      x: c.x - Math.cos(Phaser.Math.DegToRad(impactAngle)) * reach,
+      y: c.y - Math.sin(Phaser.Math.DegToRad(impactAngle)) * reach,
+    };
+    hammer.setPosition(grip.x, grip.y);
+    const rot = (headDeg: number) => Phaser.Math.DegToRad(headDeg + 57);
+    hammer.setRotation(rot(-80)).setAlpha(0).setScale(hammer.scale * 0.8);
+    swing.add(hammer);
+    const baseScale = hammer.scale / 0.8;
 
-    const impactColor = tier !== null ? tierColor(tier) : COLORS.line;
-    this.tweens.add({
-      targets: hammer,
-      rotation: Phaser.Math.DegToRad(-8),
-      x: c.x + this.size * 0.18,
-      y: c.y - this.size * 0.34,
-      duration: 360,
-      delay: 120, // brief hold of the cocked-back hammer before it swings
-      ease: "Quad.In",
-      onComplete: () => {
-        // Impact: block squashes and jitters, debris flies, hammer bounces up.
-        if (block) {
-          this.tweens.add({
-            targets: block,
-            scaleX: 1.25,
-            scaleY: 0.6,
-            duration: 140,
-            yoyo: true,
-            ease: "Quad.Out",
-            onComplete: () => block?.destroy(),
-          });
-        }
-        this.spawnMergeBurst(c.x, c.y, impactColor);
+    const impact = () => {
+      this.cameras.main.shake(110, 0.006);
+      this.spawnShockwave(c.x, c.y, color);
+      this.spawnMergeBurst(c.x, c.y, 0xffd166); // sparks
+      if (block && flash) {
+        // Flash white + squash under the head, then shatter.
+        flash.setAlpha(0.85);
+        this.tweens.add({ targets: flash, alpha: 0, duration: 120 });
         this.tweens.add({
-          targets: hammer,
-          rotation: Phaser.Math.DegToRad(-45),
-          y: c.y - this.size * 0.7,
-          alpha: 0,
-          duration: 320,
+          targets: block,
+          scaleX: 1.18,
+          scaleY: 0.72,
+          y: c.y + s * 0.1,
+          duration: 70,
           ease: "Quad.Out",
           onComplete: () => {
-            layer.destroy();
-            onDone();
+            block?.destroy();
+            this.spawnShards(c.x, c.y + s * 0.1, s, r, color);
           },
         });
-      },
+      }
+      // Recoil: the head kicks back up, then the hammer lifts away and fades.
+      this.tweens.chain({
+        targets: hammer,
+        tweens: [
+          { rotation: rot(-140), duration: 70, ease: "Quad.Out" },
+          {
+            // Swing back up and away so the shatter isn't hidden under it.
+            rotation: rot(-75),
+            x: grip.x + size * 0.3,
+            y: grip.y - size * 0.35,
+            alpha: 0,
+            duration: 200,
+            ease: "Quad.Out",
+          },
+        ],
+        onComplete: () => {
+          swing.destroy();
+          fx.destroy();
+        },
+      });
+      // Let the board start falling while the shards and hammer finish.
+      this.time.delayedCall(160, onDone);
+    };
+
+    // Pop in, wind up (pull back a little further), then a fast downswing.
+    this.tweens.chain({
+      targets: hammer,
+      tweens: [
+        { alpha: 1, scale: baseScale, duration: 110, ease: "Back.Out" },
+        { rotation: rot(-48), duration: 150, ease: "Sine.Out" },
+        { rotation: rot(impactAngle), duration: 130, ease: "Cubic.In" },
+      ],
+      onComplete: impact,
+    });
+  }
+
+  /** An expanding ring at the point of impact. */
+  private spawnShockwave(x: number, y: number, color: number): void {
+    const ring = this.add.graphics().setDepth(942).setPosition(x, y);
+    ring.lineStyle(Math.max(2, this.size * 0.06), color, 1);
+    ring.strokeCircle(0, 0, this.size * 0.5);
+    ring.setScale(0.4);
+    this.tweens.add({
+      targets: ring,
+      scale: 1.5,
+      alpha: 0,
+      duration: 300,
+      ease: "Cubic.Out",
+      onComplete: () => ring.destroy(),
+    });
+  }
+
+  /** Break a block into four quarter shards that burst outward, spin, and
+   * fall away under gravity while fading. */
+  private spawnShards(
+    x: number,
+    y: number,
+    s: number,
+    r: number,
+    color: number,
+  ): void {
+    const half = s / 2;
+    const quads = [
+      { dx: -1, dy: -1 },
+      { dx: 1, dy: -1 },
+      { dx: -1, dy: 1 },
+      { dx: 1, dy: 1 },
+    ];
+    quads.forEach(({ dx, dy }) => {
+      const g = this.add.graphics().setDepth(950); // above the hammer
+      g.fillStyle(color, 1);
+      g.fillRoundedRect(-half / 2, -half / 2, half, half, r * 0.6);
+      g.lineStyle(1, 0xffffff, 0.35);
+      g.strokeRoundedRect(-half / 2, -half / 2, half, half, r * 0.6);
+      const sx = x + (dx * half) / 2;
+      const sy = y + (dy * half) / 2;
+      g.setPosition(sx, sy);
+      const spread = this.size * (0.55 + Math.random() * 0.35);
+      const lift = this.size * (dy < 0 ? 0.45 : 0.2);
+      const drop = this.size * 1.1;
+      const duration = 480 + Math.random() * 120;
+      // Horizontal drift and spin run linearly; vertical is a short hop up
+      // followed by a gravity fall.
+      this.tweens.add({
+        targets: g,
+        x: sx + dx * spread,
+        rotation: dx * Phaser.Math.DegToRad(120 + Math.random() * 120),
+        scale: 0.55,
+        duration,
+        ease: "Linear",
+      });
+      this.tweens.chain({
+        targets: g,
+        tweens: [
+          { y: sy - lift, duration: duration * 0.3, ease: "Quad.Out" },
+          {
+            y: sy - lift + drop,
+            alpha: 0,
+            duration: duration * 0.7,
+            ease: "Quad.In",
+          },
+        ],
+        onComplete: () => g.destroy(),
+      });
     });
   }
 

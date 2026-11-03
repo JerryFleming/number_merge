@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { PowerUp } from "../core/game";
+import { POWER_COST, type PowerUp } from "../core/game";
 import { POWER_BAR_H, bottomInset } from "./layout";
 import { powerTexture } from "./assets";
 
@@ -13,6 +13,8 @@ interface Button {
   icon: Phaser.GameObjects.Image;
   /** Usage count shown in the top-right corner. */
   count: Phaser.GameObjects.Text;
+  /** Score cost shown along the bottom edge. */
+  cost: Phaser.GameObjects.Text;
   bw: number;
   bh: number;
   glowTween?: Phaser.Tweens.Tween;
@@ -71,8 +73,29 @@ export class PowerBar {
         })
         .setOrigin(1, 0)
         .setVisible(false);
-      const root = scene.add.container(0, 0, [glow, body, icon, count]);
-      const btn: Button = { power: d.power, root, glow, body, icon, count, bw: 10, bh: 10 };
+      // Score cost along the bottom edge of the button.
+      const cost = scene.add
+        .text(0, 0, `-${POWER_COST[d.power]}`, {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: "11px",
+          color: "#ffd166",
+          fontStyle: "bold",
+          backgroundColor: "#10131a",
+          padding: { x: 4, y: 1 },
+        })
+        .setOrigin(0.5, 0.5);
+      const root = scene.add.container(0, 0, [glow, body, icon, count, cost]);
+      const btn: Button = {
+        power: d.power,
+        root,
+        glow,
+        body,
+        icon,
+        count,
+        cost,
+        bw: 10,
+        bh: 10,
+      };
 
       root.setInteractive(
         new Phaser.Geom.Rectangle(-5, -5, 10, 10),
@@ -111,6 +134,13 @@ export class PowerBar {
       const n = counts[btn.power] ?? 0;
       btn.count.setText(String(n));
       btn.count.setVisible(n > 0);
+    });
+  }
+
+  /** Dim the power-ups the current score can't pay for. */
+  setAffordable(canAfford: (power: PowerUp) => boolean): void {
+    this.buttons.forEach((btn) => {
+      btn.root.setAlpha(canAfford(btn.power) ? 1 : 0.4);
     });
   }
 
@@ -184,6 +214,8 @@ export class PowerBar {
       btn.icon.setPosition(0, 0).setScale(target / srcMax);
       // Count badge on the top-right of the round body (≈45° on the circle).
       btn.count.setPosition(rr * 0.72, -rr * 0.72);
+      // Cost label straddles the bottom of the round body.
+      btn.cost.setPosition(0, rr * 0.92);
       // Hit area = the circle's bounding square, so taps match the visible body.
       (btn.root.input!.hitArea as Phaser.Geom.Rectangle).setTo(
         -rr,

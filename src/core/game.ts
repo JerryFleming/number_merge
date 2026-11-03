@@ -9,10 +9,20 @@ import { COLS, ROWS, type Cell, type Grid, type Pos, type Tier } from "./types";
 
 export type PowerUp = "hammer" | "magnet" | "swap";
 
+/** Flat score cost of each power-up use. A power-up can't be used (or armed)
+ * unless the current score covers its cost. */
+export const POWER_COST: Readonly<Record<PowerUp, bigint>> = {
+  hammer: 500n,
+  magnet: 2000n,
+  swap: 1000n,
+};
+
 export interface GameOptions {
   rng?: () => number;
   /** Start from a specific board instead of a random solvable seed. */
   initialGrid?: Grid;
+  /** Start with a specific score (e.g. for tests). */
+  initialScore?: bigint;
 }
 
 /**
@@ -36,6 +46,7 @@ export class Game {
     this._grid = opts.initialGrid
       ? opts.initialGrid.map((r) => r.slice())
       : seedBoard(this.rng, hasAnyMove);
+    this._score = opts.initialScore ?? 0n;
     this.recomputeOver();
   }
 
@@ -149,45 +160,65 @@ export class Game {
 
   // --- power-ups ----------------------------------------------------------
 
-  enterTargeting(power: PowerUp): void {
+  /** True when the current score covers this power-up's cost. */
+  canAfford(power: PowerUp): boolean {
+    return this._score >= POWER_COST[power];
+  }
+
+  /** Arm a power-up. Returns false (not armed) when it can't be afforded. */
+  enterTargeting(power: PowerUp): boolean {
+    if (!this.canAfford(power)) return false;
     this._path = [];
     this._targeting = power;
+    return true;
   }
   cancelTargeting(): void {
     this._targeting = null;
   }
 
+  /** Returns false (no change) when the score can't cover the cost. */
   useHammer(target: Pos): boolean {
+    if (!this.canAfford("hammer")) return false;
     this._grid = hammer(this._grid, target);
     this.settleBoard();
     this._targeting = null;
-    this._useCounts.hammer++;
+    this.charge("hammer");
     return true;
   }
 
-  /** Returns false (no change) when the tapped tier is a singleton. */
+  /** Returns false (no change) when the tapped tier is a singleton or the
+   * score can't cover the cost. */
   useMagnet(target: Pos): boolean {
+    if (!this.canAfford("magnet")) return false;
     if (!magnetUsable(this._grid, target)) return false;
     const out = magnet(this._grid, target);
     if (!out) return false;
     this._grid = out;
     this.settleBoard();
     this._targeting = null;
-    this._useCounts.magnet++;
+    this.charge("magnet");
     return true;
   }
 
+  /** Returns false (no change) when the score can't cover the cost. */
   useSwap(a: Pos, b: Pos): boolean {
+    if (!this.canAfford("swap")) return false;
     // Swap does not shift or refill: positions just exchange, no fall to animate.
     this._lastSettle = new Map();
     this._grid = swap(this._grid, a, b);
     this._targeting = null;
-    this._useCounts.swap++;
+    this.charge("swap");
     this.recomputeOver();
     return true;
   }
 
   // --- internals ----------------------------------------------------------
+
+  /** Record a power-up use and deduct its cost from the score. */
+  private charge(power: PowerUp): void {
+    this._useCounts[power]++;
+    this._score -= POWER_COST[power];
+  }
 
   /** Locate a specific block object on the board by identity, or null. */
   private findBlock(block: Cell): Pos | null {

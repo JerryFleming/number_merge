@@ -57,7 +57,10 @@ describe("serialize / deserialize round-trip", () => {
   });
 
   it("round-trips power-up use counts", () => {
-    const game = new Game({ initialGrid: gridOf(2, { "0,0": 8, "0,1": 8 }) });
+    const game = new Game({
+      initialGrid: gridOf(2, { "0,0": 8, "0,1": 8 }),
+      initialScore: 10_000n,
+    });
     game.useHammer(P(4, 4));
     game.useHammer(P(3, 3));
     const state = deserialize(serialize(game))!;

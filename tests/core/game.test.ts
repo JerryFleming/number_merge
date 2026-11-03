@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Game } from "../../src/core/game";
+import { Game, POWER_COST } from "../../src/core/game";
 import { cellAt } from "../../src/core/board";
 import { COLS, ROWS, type Cell, type Grid, type Pos } from "../../src/core/types";
 
@@ -118,14 +118,22 @@ describe("Game.reachedTier is monotonic", () => {
 
 describe("Game power-up targeting vs drag", () => {
   it("ignores pointer() while targeting mode is active", () => {
-    const game = new Game({ rng: fixedRng(0), initialGrid: gridOf(5, {}) });
+    const game = new Game({
+      rng: fixedRng(0),
+      initialGrid: gridOf(5, {}),
+      initialScore: 10_000n,
+    });
     game.enterTargeting("hammer");
     game.pointer(P(0, 0));
     expect(game.path).toEqual([]);
   });
 
   it("begins a drag once targeting is cancelled", () => {
-    const game = new Game({ rng: fixedRng(0), initialGrid: gridOf(5, {}) });
+    const game = new Game({
+      rng: fixedRng(0),
+      initialGrid: gridOf(5, {}),
+      initialScore: 10_000n,
+    });
     game.enterTargeting("hammer");
     game.cancelTargeting();
     game.pointer(P(0, 0));
@@ -136,6 +144,7 @@ describe("Game power-up targeting vs drag", () => {
     const game = new Game({
       rng: fixedRng(0),
       initialGrid: gridOf(5, { "2,2": 7 }),
+      initialScore: 10_000n,
     });
     game.enterTargeting("hammer");
     const changed = game.useHammer(P(2, 2));
@@ -155,6 +164,7 @@ describe("Game power-up use counts", () => {
     const game = new Game({
       rng: fixedRng(0),
       initialGrid: gridOf(5, { "2,2": 7, "0,0": 3, "4,4": 3 }),
+      initialScore: 10_000n,
     });
     game.useHammer(P(2, 2));
     game.useHammer(P(0, 1));
@@ -167,6 +177,7 @@ describe("Game power-up use counts", () => {
     const game = new Game({
       rng: fixedRng(0),
       initialGrid: gridOf(5, { "2,2": 9 }),
+      initialScore: 10_000n,
     });
     const changed = game.useMagnet(P(2, 2));
     expect(changed).toBe(false);
@@ -177,9 +188,57 @@ describe("Game power-up use counts", () => {
     const game = new Game({
       rng: fixedRng(0),
       initialGrid: gridOf(5, { "2,2": 7 }),
+      initialScore: 10_000n,
     });
     game.useHammer(P(2, 2));
     game.startNew();
     expect(game.useCounts).toEqual({ hammer: 0, magnet: 0, swap: 0 });
+  });
+});
+
+describe("Game power-up costs", () => {
+  const make = (score: bigint, special: Record<string, number> = { "2,2": 7 }) =>
+    new Game({ rng: fixedRng(0), initialGrid: gridOf(5, special), initialScore: score });
+
+  it("deducts each power-up's flat cost from the score", () => {
+    const START = 100_000n;
+    const game = make(START, { "2,2": 7, "0,0": 3, "4,4": 3 });
+    game.useHammer(P(2, 2));
+    expect(game.score).toBe(START - POWER_COST.hammer);
+    game.useSwap(P(1, 1), P(3, 3));
+    expect(game.score).toBe(START - POWER_COST.hammer - POWER_COST.swap);
+    game.useMagnet(P(0, 0));
+    expect(game.score).toBe(
+      START - POWER_COST.hammer - POWER_COST.swap - POWER_COST.magnet,
+    );
+  });
+
+  it("allows a power-up when the score exactly covers the cost", () => {
+    const game = make(POWER_COST.hammer);
+    expect(game.canAfford("hammer")).toBe(true);
+    expect(game.useHammer(P(2, 2))).toBe(true);
+    expect(game.score).toBe(0n);
+  });
+
+  it("blocks a power-up the score cannot cover, leaving the game unchanged", () => {
+    const game = make(POWER_COST.hammer - 1n);
+    const before = game.grid;
+    expect(game.canAfford("hammer")).toBe(false);
+    expect(game.useHammer(P(2, 2))).toBe(false);
+    expect(game.grid).toBe(before);
+    expect(game.score).toBe(POWER_COST.hammer - 1n);
+    expect(game.useCounts.hammer).toBe(0);
+  });
+
+  it("refuses to arm targeting for an unaffordable power-up", () => {
+    const game = make(0n);
+    expect(game.enterTargeting("swap")).toBe(false);
+    expect(game.targeting).toBeNull();
+  });
+
+  it("does not charge for a rejected magnet", () => {
+    const game = make(1_000n, { "2,2": 9 });
+    expect(game.useMagnet(P(2, 2))).toBe(false);
+    expect(game.score).toBe(1_000n);
   });
 });

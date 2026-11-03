@@ -13,7 +13,7 @@ interface Button {
   icon: Phaser.GameObjects.Image;
   /** Usage count shown in the top-right corner. */
   count: Phaser.GameObjects.Text;
-  /** Score cost shown along the bottom edge. */
+  /** Score cost shown just below the round body. */
   cost: Phaser.GameObjects.Text;
   bw: number;
   bh: number;
@@ -73,7 +73,7 @@ export class PowerBar {
         })
         .setOrigin(1, 0)
         .setVisible(false);
-      // Score cost along the bottom edge of the button.
+      // Score cost centered just below the round button.
       const cost = scene.add
         .text(0, 0, `-${POWER_COST[d.power]}`, {
           fontFamily: "system-ui, sans-serif",
@@ -83,7 +83,7 @@ export class PowerBar {
           backgroundColor: "#10131a",
           padding: { x: 4, y: 1 },
         })
-        .setOrigin(0.5, 0.5);
+        .setOrigin(0.5, 0);
       const root = scene.add.container(0, 0, [glow, body, icon, count, cost]);
       const btn: Button = {
         power: d.power,
@@ -214,8 +214,8 @@ export class PowerBar {
       btn.icon.setPosition(0, 0).setScale(target / srcMax);
       // Count badge on the top-right of the round body (≈45° on the circle).
       btn.count.setPosition(rr * 0.72, -rr * 0.72);
-      // Cost label straddles the bottom of the round body.
-      btn.cost.setPosition(0, rr * 0.92);
+      // Cost label sits in the gap below the round body, clear of the icon.
+      btn.cost.setPosition(0, rr + 3);
       // Hit area = the circle's bounding square, so taps match the visible body.
       (btn.root.input!.hitArea as Phaser.Geom.Rectangle).setTo(
         -rr,

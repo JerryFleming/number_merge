@@ -9,6 +9,7 @@ import selectUrl from "../assets/audio/select.ogg";
 import deselectUrl from "../assets/audio/deselect.ogg";
 import invalidUrl from "../assets/audio/invalid.ogg";
 import hammerUrl from "../assets/audio/hammer.ogg";
+import crashUrl from "../assets/audio/crash.ogg";
 import magnetUrl from "../assets/audio/magnet.ogg";
 import swapUrl from "../assets/audio/swap.ogg";
 import gameoverUrl from "../assets/audio/gameover.ogg";
@@ -28,6 +29,7 @@ export const SFX_NAMES = [
   "merge",
   "invalid",
   "hammer",
+  "crash",
   "magnet",
   "swap",
   "gameover",
@@ -55,6 +57,7 @@ export const AUDIO_ASSETS: ReadonlyArray<readonly [string, string]> = [
   ["deselect", deselectUrl],
   ["invalid", invalidUrl],
   ["hammer", hammerUrl],
+  ["crash", crashUrl],
   ["magnet", magnetUrl],
   ["swap", swapUrl],
   ["gameover", gameoverUrl],

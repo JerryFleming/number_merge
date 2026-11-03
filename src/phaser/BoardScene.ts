@@ -1175,6 +1175,7 @@ export class BoardScene extends Phaser.Scene {
     const baseScale = hammer.scale / 0.8;
 
     const impact = () => {
+      this.sfx.play("crash");
       this.cameras.main.shake(110, 0.006);
       this.spawnShockwave(c.x, c.y, color);
       this.spawnMergeBurst(c.x, c.y, 0xffd166); // sparks
